@@ -2,9 +2,11 @@ name: Daily AI News Briefing
 
 on:
   schedule:
-    # 每天 09:05 PST (= 17:05 UTC)，避开整点拥挤
-    - cron: '5 17 * * *'
-  workflow_dispatch:  # 允许手动触发（方便测试）
+    - cron: '5 17 * * *'   # 09:05 PST (= 17:05 UTC)
+  workflow_dispatch:        # 手动触发
+
+permissions:
+  contents: write           # 需要写权限来 commit state 文件
 
 jobs:
   run-briefing:
@@ -24,12 +26,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Create logs directory
-        run: mkdir -p logs
+      - name: Create required directories
+        run: mkdir -p logs state
 
       - name: Run daily briefing
         env:
-          # API Keys — 从 GitHub Secrets 注入，代码中永不出现明文
           TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
           TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
           TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
@@ -39,7 +40,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          # 配置项（非敏感，直接写在这里）
+          POD2TXT_API_KEY: ${{ secrets.POD2TXT_API_KEY }}
           SCHEDULE_TIME: "09:00"
           TIMEZONE: "US/Pacific"
           MIN_QUALITY_SCORE: "0.7"
@@ -48,6 +49,14 @@ jobs:
           LOG_LEVEL: "INFO"
           LOG_FILE: "logs/aggregator.log"
         run: python3 main.py --mode once
+
+      - name: Commit deduplication state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/seen_items.json
+          git diff --staged --quiet || git commit -m "chore: update dedup state [skip ci]"
+          git push
 
       - name: Upload logs on failure
         if: failure()

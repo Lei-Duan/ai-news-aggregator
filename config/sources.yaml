@@ -146,6 +146,17 @@ reddit:
     - "nextjs"
     - "vercel"
 
+# Podcast RSS feeds — fetched via PodcastFetcher, optionally transcribed via pod2txt
+# Episodes from the last 72 hours are included. Full transcription requires POD2TXT_API_KEY.
+podcasts:
+  rss_feeds:
+    - "https://lexfridman.com/feed/podcast/"                          # Lex Fridman
+    - "https://feeds.megaphone.fm/MLN2155636728"                      # TWIML AI Podcast
+    - "https://feeds.transistor.fm/the-cognitive-revolution"          # The Cognitive Revolution
+    - "https://api.substack.com/feed/podcast/1191634.rss"             # Latent Space
+    - "https://feeds.simplecast.com/4hU5W_VJ"                        # No Priors (a16z AI)
+    - "https://futureoflife.org/podcast/feed/"                        # FLI Podcast
+
 # Hacker News topics
 hackernews:
   # Keywords to search in titles
