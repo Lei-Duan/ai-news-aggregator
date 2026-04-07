@@ -1,0 +1,58 @@
+name: Daily AI News Briefing
+
+on:
+  schedule:
+    # 每天 09:05 PST (= 17:05 UTC)，避开整点拥挤
+    - cron: '5 17 * * *'
+  workflow_dispatch:  # 允许手动触发（方便测试）
+
+jobs:
+  run-briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create logs directory
+        run: mkdir -p logs
+
+      - name: Run daily briefing
+        env:
+          # API Keys — 从 GitHub Secrets 注入，代码中永不出现明文
+          TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+          TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          TWITTER_ACCESS_TOKEN_SECRET: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          # 配置项（非敏感，直接写在这里）
+          SCHEDULE_TIME: "09:00"
+          TIMEZONE: "US/Pacific"
+          MIN_QUALITY_SCORE: "0.7"
+          MAX_ARTICLES_PER_SOURCE: "10"
+          SUMMARY_MAX_LENGTH: "200"
+          LOG_LEVEL: "INFO"
+          LOG_FILE: "logs/aggregator.log"
+        run: python3 main.py --mode once
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-logs
+          path: logs/
+          retention-days: 7

@@ -1,0 +1,191 @@
+# AI Information Sources Configuration - Build in Public Focus
+
+# Twitter/X accounts - Build in Public & AI Tool Builders
+twitter:
+  ai_accounts:
+    # Build in public legends
+    - "@levelsio"           # Pieter Levels - builds AI tools in public
+    - "@dannypostmaa"       # Danny Postma - AI SEO tools
+    - "@marc_lou_"          # Marc Lou - AI SaaS builder
+    - "@tibo_maker"         # Tibo - builds AI tools
+    - "@arvidkahl"          # Arvid Kahl - author, builds in public
+    - "@simonhoiberg"       # Simon Hoiberg - SaaS builder
+    - "@siddharth_1729"     # Siddharth - AI tool builder
+    - "@gabe_flc"           # Gabe - builds in public
+    - "@felix12777"         # Felix - indie hacker
+    - "@andreyazimov"       # Andrey - Mac apps builder
+
+    # AI community leaders
+    - "@AndrewYNg"          # Andrew Ng
+    - "@karpathy"           # Andrej Karpathy
+    - "@jeremyphoward"      # Jeremy Howard
+    - "@hardmaru"           # Hardmaru - agent projects
+    - "@_akhaliq"           # AK - AI news
+    - "@huggingface"        # Hugging Face
+
+  # Keywords for AI + Build in Public content
+  keywords:
+    - "agent"
+    - "LLM"
+    - "GPT"
+    - "Claude"
+    - "AI"
+    - "machine learning"
+    - "deep learning"
+    - "transformer"
+    - "foundation model"
+    - "fine-tuning"
+    - "RLHF"
+    - "prompt engineering"
+    - "build in public"
+    - "buildinpublic"
+    - "indie hacker"
+    - "side project"
+    - "saas"
+    - "mrr"
+    - "revenue"
+    - "startup"
+    - "ship"
+    - "launch"
+    - "solo founder"
+
+# GitHub repositories and topics - AI tools by indie developers
+# STRICTLY LIMITED to reduce API costs - max 3-5 topics only
+# NOTE: No organizations — big orgs (openai/anthropic/huggingface) flood results with known repos.
+#       We rely purely on topic search + star velocity to find fast-rising new projects.
+github:
+  # Topics for AI + Build in Public - STRICT LIMIT for cost control
+  # Repos are sorted by star_velocity (stars/day) to surface fast-rising new projects
+  topics:
+    - "buildinpublic"
+    - "ai-saas"
+    - "indie-hacker"
+    - "llm"
+    - "ai-agent"
+
+# Reddit subreddits - Build in Public & AI Tools (via JSON API, real score data)
+# Narrowed to high signal-to-noise subreddits only.
+# Fetches today's top posts (/top.json?t=day) with real upvote scores.
+reddit:
+  subreddits:
+    # AI focused — very active, high signal
+    - "LocalLLaMA"        # local/open-source LLM practitioners
+    - "MachineLearning"   # research + applied ML
+    - "singularity"       # AI news & hype, fast moving
+    - "artificial"        # general AI discussion
+    - "ChatGPT"           # real user AI experiences
+    - "OpenAI"            # OpenAI news
+    - "ClaudeAI"          # Anthropic/Claude news
+    - "StableDiffusion"   # generative AI art/tools
+    - "generativeAI"      # broad generative AI
+    - "LLMDevs"           # LLM developers community
+
+    # Builder / indie hacker community
+    - "buildinpublic"     # build in public posts
+    - "indiehackers"      # indie hacker projects
+    - "SideProject"       # side project showcases
+    - "SaaS"              # SaaS product discussions
+
+  # Keywords to filter for AI + Build in Public content
+  keywords:
+    # AI terms
+    - "AI"
+    - "artificial intelligence"
+    - "machine learning"
+    - "LLM"
+    - "GPT"
+    - "Claude"
+    - "agent"
+    - "autonomous"
+    - "foundation model"
+    - "fine-tuning"
+    - "RLHF"
+    - "transformer"
+    - "neural network"
+    - "deep learning"
+    - "prompt engineering"
+    - "embedding"
+    - "rag"
+    - "langchain"
+    - "llamaindex"
+    - "openai"
+    - "anthropic"
+    - "huggingface"
+    - "stability ai"
+    - "midjourney"
+    - "stable diffusion"
+    - "dalle"
+    - "generative AI"
+    - "AGI"
+    - "copilot"
+    - "github copilot"
+    - "code generation"
+    - "AI coding"
+    - "AI programming"
+
+    # Build in public terms
+    - "build in public"
+    - "buildinpublic"
+    - "indie hacker"
+    - "side project"
+    - "saas"
+    - "mrr"
+    - "revenue"
+    - "startup"
+    - "solo founder"
+    - "ship"
+    - "launch"
+    - "AI MVP"
+    - "AI SaaS"
+    - "AI tool"
+    - "AI product"
+    - "AI automation"
+    - "ship your thing"
+    - "product hunt"
+    - "stripe"
+    - "nextjs"
+    - "vercel"
+
+# Hacker News topics
+hackernews:
+  # Keywords to search in titles
+  keywords:
+    - "AI"
+    - "artificial intelligence"
+    - "machine learning"
+    - "LLM"
+    - "GPT"
+    - "Claude"
+    - "agent"
+    - "foundation model"
+    - "build in public"
+    - "indie hacker"
+    - "side project"
+    - "show hn"
+    - "SaaS"
+    - "startup"
+
+  # Minimum points threshold
+  min_points: 30
+
+# RSS feeds for AI blogs and build in public content
+rss_feeds:
+  # AI company blogs
+  - "https://openai.com/blog/rss.xml"
+  - "https://www.anthropic.com/news/rss.xml"
+  - "https://blog.google/technology/ai/rss/"
+  - "https://research.google.com/blog/rss.xml"
+  - "https://ai.googleblog.com/feeds/posts/default"
+  - "https://blog.research.google/feeds/posts/default"
+  - "https://distill.pub/rss.xml"
+  - "https://huggingface.co/blog/feed.xml"
+
+  # Build in public blogs
+  - "https://www.indiehackers.com/blog/rss"
+  - "https://levels.io/feed/"
+  - "https://arvidkahl.com/feed/"
+  - "https://simonhoiberg.com/rss"
+  - "https://buildinpublic.blog/rss"
+  - "https://blog.alexmaccaw.com/rss"
+  - "https://dannypostma.com/rss"
+  - "https://marc.dev/rss"
