@@ -75,7 +75,7 @@ class DailyBriefingJob:
 
         try:
             logger.info("Fetching content from all sources...")
-            raw_content = await self.fetch_all_content()
+            raw_content, fetch_stats = await self.fetch_all_content()
 
             logger.info("Deduplicating against seen-items state...")
             raw_content = self.deduplicate(raw_content)
@@ -90,7 +90,7 @@ class DailyBriefingJob:
             categorized_content = self.categorize_and_filter(processed_content)
 
             logger.info("Creating Notion page...")
-            page_id = await self.create_notion_page(categorized_content)
+            page_id = await self.create_notion_page(categorized_content, fetch_stats=fetch_stats)
 
             # Mark all fetched items as seen AFTER successful Notion publish
             self._mark_all_seen(raw_content)
@@ -140,8 +140,10 @@ class DailyBriefingJob:
     # Fetchers
     # ------------------------------------------------------------------ #
 
-    async def fetch_all_content(self) -> Dict[str, List]:
-        content = {}
+    async def fetch_all_content(self) -> tuple:
+        """Returns (content_dict, fetch_stats_dict)."""
+        content: Dict[str, List] = {}
+        fetch_stats: Dict[str, dict] = {}
 
         sources = [
             ("twitter",    self.fetch_twitter_content),
@@ -156,15 +158,19 @@ class DailyBriefingJob:
         for source, fetch_fn in sources:
             logger.info(f"Fetching {source} content...")
             try:
-                content[source] = await fetch_fn()
+                items = await fetch_fn()
+                content[source] = items
+                status = "ok" if items else "empty"
+                fetch_stats[source] = {"count": len(items), "status": status, "error": None}
             except Exception as e:
                 logger.error(f"Error fetching {source} (skipping): {e}", exc_info=True)
                 content[source] = []
+                fetch_stats[source] = {"count": 0, "status": "error", "error": str(e)}
 
         for source, items in content.items():
-            logger.info(f"  Raw [{source}]: {len(items)} items")
+            logger.info(f"  Raw [{source}]: {len(items)} items  [{fetch_stats[source]['status']}]")
 
-        return content
+        return content, fetch_stats
 
     async def fetch_twitter_content(self) -> List[Dict]:
         if not settings.twitter_bearer_token:
@@ -393,14 +399,24 @@ class DailyBriefingJob:
 
         filtered = {}
         for source, items in raw_content.items():
+            original = len(items)
             days = {
-                "podcasts": 3, "blogs": 3, "github": 7, "rss": 3
+                "podcasts": 3, "blogs": 3, "github": 7, "rss": 3, "reddit": 2
             }.get(source, 1)
-            items = self.filter.filter_by_date(items, days=days)
-            items = [i for i in items if is_relevant(i)]
-            items = items[:LIMITS.get(source, 10)]
-            filtered[source] = items
-            logger.info(f"Pre-filter [{source}]: {len(raw_content[source])} → {len(items)}")
+            after_date = self.filter.filter_by_date(items, days=days)
+            after_kw = [i for i in after_date if is_relevant(i)]
+            after_limit = after_kw[:LIMITS.get(source, 10)]
+            filtered[source] = after_limit
+
+            reasons = []
+            if len(after_date) < original:
+                reasons.append(f"date({days}d) dropped {original - len(after_date)}")
+            if len(after_kw) < len(after_date):
+                reasons.append(f"keyword dropped {len(after_date) - len(after_kw)}")
+            if len(after_limit) < len(after_kw):
+                reasons.append(f"limit({LIMITS.get(source,10)}) dropped {len(after_kw) - len(after_limit)}")
+            reason_str = " | ".join(reasons) if reasons else "all passed"
+            logger.info(f"Pre-filter [{source}]: {original} → {len(after_limit)}  ({reason_str})")
 
         return filtered
 
@@ -513,10 +529,11 @@ class DailyBriefingJob:
     # Notion
     # ------------------------------------------------------------------ #
 
-    async def create_notion_page(self, content: Dict[str, List[Dict]]) -> str:
+    async def create_notion_page(self, content: Dict[str, List[Dict]], fetch_stats: dict = None) -> str:
         page_id = await self.notion_client.create_daily_briefing(
             date=datetime.now(),
             sections=content,
+            fetch_stats=fetch_stats or {},
         )
         return page_id
 

@@ -12,18 +12,28 @@ class NotionClient:
         self.client = AsyncClient(auth=token)
         self.database_id = database_id
 
-    async def create_daily_briefing(self, date: datetime, sections: Dict[str, List[Dict]]) -> str:
-        """Create a daily briefing page in Notion"""
+    async def create_daily_briefing(self, date: datetime, sections: Dict[str, List[Dict]], fetch_stats: dict = None) -> str:
+        """Create a daily briefing page in Notion.
+
+        Notion's pages.create does not accept table blocks in the children list —
+        tables must be appended separately. To keep the summary table at the top,
+        we split the block list at the first table, create the page with pre-table
+        blocks, then append the table, then append the remaining blocks.
+        """
         try:
-            all_blocks = self._build_page_content(sections)
+            all_blocks = self._build_page_content(sections, fetch_stats=fetch_stats or {})
 
-            # Notion does NOT allow table blocks with children in pages.create —
-            # we must append them separately after page creation.
-            # Split: non-table blocks for creation, table blocks for append.
-            non_table = [b for b in all_blocks if b.get("type") != "table"]
-            table_blocks = [b for b in all_blocks if b.get("type") == "table"]
+            # Split at the first table block
+            pre_table, post_table, table_block = [], [], None
+            for block in all_blocks:
+                if block.get("type") == "table" and table_block is None:
+                    table_block = block
+                elif table_block is None:
+                    pre_table.append(block)
+                else:
+                    post_table.append(block)
 
-            # Create page with first 100 non-table blocks
+            # 1. Create page with pre-table content (everything before the summary table)
             page_data = {
                 "parent": {"database_id": self.database_id},
                 "properties": {
@@ -31,19 +41,22 @@ class NotionClient:
                     "Date": {"date": {"start": date.strftime("%Y-%m-%d")}},
                     "Tags": {"multi_select": [{"name": "AI"}, {"name": "Daily Briefing"}]},
                 },
-                "children": non_table[:100],
+                "children": pre_table[:100],
             }
-
             response = await self.client.pages.create(**page_data)
             page_id = response["id"]
 
-            # Append remaining non-table blocks in chunks of 100
-            for i in range(100, len(non_table), 100):
-                await self.append_to_page(page_id, non_table[i:i + 100])
+            # Overflow pre-table blocks
+            for i in range(100, len(pre_table), 100):
+                await self.append_to_page(page_id, pre_table[i:i + 100])
 
-            # Append table blocks individually (each table with its children)
-            for table_block in table_blocks:
+            # 2. Append the summary table (now it appears right after the header)
+            if table_block:
                 await self.append_to_page(page_id, [table_block])
+
+            # 3. Append the detailed content that follows the table
+            for i in range(0, len(post_table), 100):
+                await self.append_to_page(page_id, post_table[i:i + 100])
 
             logger.info(f"Created daily briefing page: {page_id}")
             return page_id
@@ -192,8 +205,38 @@ class NotionClient:
             },
         }
 
-    def _build_page_content(self, sections: Dict[str, List[Dict]]) -> List[Dict]:
-        """Build Notion blocks: header → summary table → per-section bilingual detail."""
+    def _build_fetch_status_blocks(self, fetch_stats: dict) -> List[Dict]:
+        """Compact one-line-per-source fetch status shown at the very top."""
+        if not fetch_stats:
+            return []
+
+        SOURCE_LABELS = {
+            "twitter": "Twitter/X", "github": "GitHub", "reddit": "Reddit",
+            "hackernews": "Hacker News", "rss": "RSS", "podcasts": "Podcasts", "blogs": "Tech Blogs",
+        }
+        STATUS_ICON = {"ok": "✅", "empty": "⚠️", "error": "❌"}
+
+        lines = []
+        for source, stat in fetch_stats.items():
+            icon = STATUS_ICON.get(stat["status"], "❓")
+            label = SOURCE_LABELS.get(source, source)
+            count = stat["count"]
+            err = f" — {stat['error'][:80]}" if stat.get("error") else ""
+            lines.append(f"{icon} {label}: {count} items{err}")
+
+        text = "\n".join(lines)
+        return [{
+            "object": "block",
+            "type": "callout",
+            "callout": {
+                "rich_text": [{"type": "text", "text": {"content": text}}],
+                "icon": {"emoji": "📡"},
+                "color": "gray_background",
+            }
+        }]
+
+    def _build_page_content(self, sections: Dict[str, List[Dict]], fetch_stats: dict = None) -> List[Dict]:
+        """Build Notion blocks: header → fetch status → summary table → detailed sections."""
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
         total = sum(len(v) for v in sections.values())
         blocks: List[Dict] = []
@@ -205,23 +248,27 @@ class NotionClient:
             italic=True, color="gray"
         ))
 
-        # ── 2. Summary table (top) ─────────────────────────────────────────
+        # ── 2. Fetch status (source health at a glance) ────────────────────
+        if fetch_stats:
+            blocks.extend(self._build_fetch_status_blocks(fetch_stats))
+
+        # ── 3. Summary table ───────────────────────────────────────────────
+        # NOTE: table must be first non-pre_table block so create_daily_briefing
+        # can split here and append the table right after the header.
         blocks.append(self._h2("📊 今日速览 / Today at a Glance"))
-        blocks.append(self._build_summary_table(sections))
+        blocks.append(self._build_summary_table(sections))   # ← table; will be split here
         blocks.append(self._divider())
 
-        # ── 3. Detailed sections: each topic = Chinese items then English items
+        # ── 4. Detailed sections ───────────────────────────────────────────
         blocks.append(self._h2("📋 详细内容 / Detailed Content"))
         for section_title, items in sections.items():
             if not items:
                 continue
             meta = self.SECTION_META.get(section_title, {"emoji": "📌", "zh": section_title})
-            # Section heading: Chinese / English
             blocks.append(self._h2(
                 f"{meta['emoji']} {meta['zh']} / {section_title} ({len(items)})"
             ))
             for item in items:
-                # Chinese first, then English immediately after
                 blocks.extend(self._create_item_blocks_zh(item))
                 blocks.extend(self._create_item_blocks_en(item))
             blocks.append(self._blank())

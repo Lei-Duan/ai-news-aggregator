@@ -254,6 +254,14 @@ class TwitterFetcher:
             for query in queries:
                 try:
                     tweets = await self._run_search(session, query, start_time, max_results)
+                    if tweets:
+                        max_lc = max(t.like_count for t in tweets)
+                        logger.info(
+                            f"Twitter search returned {len(tweets)} tweets, "
+                            f"max like_count={max_lc} (threshold={min_likes})"
+                        )
+                    else:
+                        logger.info("Twitter search returned 0 tweets")
                     for t in tweets:
                         if t.id not in seen_ids and t.like_count >= min_likes:
                             seen_ids.add(t.id)
@@ -277,6 +285,7 @@ class TwitterFetcher:
             "query": query,
             "max_results": min(max_results, 100),
             "start_time": start_time,
+            "sort_order": "relevancy",   # surfaces higher-engagement content vs pure recency
             "tweet.fields": "created_at,public_metrics,note_tweet,entities,author_id",
             "expansions": "author_id",
             "user.fields": "name,username,description",
