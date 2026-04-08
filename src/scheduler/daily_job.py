@@ -143,26 +143,23 @@ class DailyBriefingJob:
     async def fetch_all_content(self) -> Dict[str, List]:
         content = {}
 
-        logger.info("Fetching Twitter content...")
-        content["twitter"] = await self.fetch_twitter_content()
+        sources = [
+            ("twitter",    self.fetch_twitter_content),
+            ("github",     self.fetch_github_content),
+            ("reddit",     self.fetch_reddit_content),
+            ("hackernews", self.fetch_hackernews_content),
+            ("rss",        self.fetch_rss_content),
+            ("podcasts",   self.fetch_podcast_content),
+            ("blogs",      self.fetch_blog_content),
+        ]
 
-        logger.info("Fetching GitHub content...")
-        content["github"] = await self.fetch_github_content()
-
-        logger.info("Fetching Reddit content...")
-        content["reddit"] = await self.fetch_reddit_content()
-
-        logger.info("Fetching Hacker News content...")
-        content["hackernews"] = await self.fetch_hackernews_content()
-
-        logger.info("Fetching RSS content...")
-        content["rss"] = await self.fetch_rss_content()
-
-        logger.info("Fetching podcast episodes...")
-        content["podcasts"] = await self.fetch_podcast_content()
-
-        logger.info("Fetching tech blog posts...")
-        content["blogs"] = await self.fetch_blog_content()
+        for source, fetch_fn in sources:
+            logger.info(f"Fetching {source} content...")
+            try:
+                content[source] = await fetch_fn()
+            except Exception as e:
+                logger.error(f"Error fetching {source} (skipping): {e}", exc_info=True)
+                content[source] = []
 
         for source, items in content.items():
             logger.info(f"  Raw [{source}]: {len(items)} items")

@@ -73,7 +73,8 @@ class TwitterFetcher:
 
         clean_handles = [a.lstrip("@") for a in accounts]
 
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             user_map = await self._batch_resolve_usernames(session, clean_handles)
             if not user_map:
                 logger.warning("Twitter: could not resolve any user IDs")
@@ -118,26 +119,32 @@ class TwitterFetcher:
                 "usernames": ",".join(chunk),
                 "user.fields": "id,name,username,description",
             }
-            async with session.get(
-                f"{self.base_url}/users/by",
-                headers=self._headers,
-                params=params,
-            ) as resp:
-                if resp.status == 401:
-                    logger.error("Twitter: 401 Unauthorized — check Bearer Token")
-                    return {}
-                if resp.status == 403:
-                    logger.error(
-                        "Twitter: 403 Forbidden — Bearer Token likely on free tier "
-                        "(Basic $100/mo required for timeline reads)"
-                    )
-                    return {}
-                if resp.status != 200:
-                    logger.error(f"Twitter: /users/by returned {resp.status}")
-                    return {}
-                data = await resp.json()
-                for user in data.get("data", []):
-                    result[user["username"].lower()] = user
+            try:
+                async with session.get(
+                    f"{self.base_url}/users/by",
+                    headers=self._headers,
+                    params=params,
+                ) as resp:
+                    body = await resp.text()
+                    if resp.status == 401:
+                        logger.error("Twitter: 401 Unauthorized — check Bearer Token. Response: %s", body[:300])
+                        return {}
+                    if resp.status == 403:
+                        logger.error(
+                            "Twitter: 403 Forbidden — Bearer Token likely on free tier "
+                            "(Basic $100/mo required). Response: %s", body[:300]
+                        )
+                        return {}
+                    if resp.status != 200:
+                        logger.error("Twitter: /users/by returned %s. Response: %s", resp.status, body[:300])
+                        return {}
+                    import json as _json
+                    data = _json.loads(body)
+                    for user in data.get("data", []):
+                        result[user["username"].lower()] = user
+            except Exception as e:
+                logger.error("Twitter: exception in _batch_resolve_usernames: %s", e)
+                return {}
         return result
 
     async def _fetch_user_timeline(
@@ -242,7 +249,8 @@ class TwitterFetcher:
         all_tweets: List[Tweet] = []
         seen_ids = set()
 
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             for query in queries:
                 try:
                     tweets = await self._run_search(session, query, start_time, max_results)

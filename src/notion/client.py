@@ -52,6 +52,31 @@ class NotionClient:
             logger.error(f"Error creating Notion page: {e}")
             raise
 
+    # ── Category → Chinese label ────────────────────────────────────────────
+    CATEGORY_ZH = {
+        # Tweet categories
+        "agent-project":      "🤖 Agent应用",
+        "model-release":      "🚀 基础模型迭代",
+        "research-paper":     "📄 学术研究",
+        "industry-news":      "🏢 行业动态",
+        "tutorial":           "🛠 技术教程",
+        # GitHub categories
+        "agent-framework":    "🤖 Agent框架",
+        "llm-tool":           "⚙️ LLM工具",
+        "model-implementation":"🔬 模型实现",
+        "dataset":            "📦 数据集",
+        # Article categories
+        "research-breakthrough": "🔬 研究突破",
+        "product-launch":     "🆕 产品发布",
+        "technical-tutorial": "🛠 技术教程",
+        "industry-analysis":  "📊 行业分析",
+        "policy-update":      "📋 政策动态",
+        # Special
+        "podcast":            "🎙 播客",
+        "blog":               "📝 官方博客",
+        "other":              "📰 其他",
+    }
+
     # ── Section metadata ────────────────────────────────────────────────────
     SECTION_META = {
         "Agent Projects":      {"emoji": "🤖", "zh": "Agent 项目"},
@@ -211,15 +236,55 @@ class NotionClient:
         if pub and isinstance(pub, str): parts.append(pub[:10])
         return "  ·  ".join(parts)
 
+    def _item_tag_block(self, item: Dict) -> Dict:
+        """Single paragraph with three inline segments: type · date · 🔗 link."""
+        cat = item.get("category", "other")
+        cat_label = self.CATEGORY_ZH.get(cat, f"📌 {cat}")
+
+        pub = item.get("published_at", "")
+        if hasattr(pub, "strftime"):
+            date_str = pub.strftime("%Y-%m-%d")
+        elif isinstance(pub, str) and pub:
+            date_str = pub[:10]
+        else:
+            date_str = ""
+
+        url = item.get("url", "")
+
+        rich_text = [
+            {
+                "type": "text",
+                "text": {"content": cat_label},
+                "annotations": {"bold": True, "color": "blue"},
+            },
+        ]
+        if date_str:
+            rich_text.append({
+                "type": "text",
+                "text": {"content": f"   🕐 {date_str}"},
+                "annotations": {"color": "gray"},
+            })
+        if url:
+            rich_text.append({
+                "type": "text",
+                "text": {"content": "   🔗 原文", "link": {"url": url}},
+                "annotations": {"color": "blue"},
+            })
+
+        return {
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {"rich_text": rich_text},
+        }
+
     def _create_item_blocks_zh(self, item: Dict) -> List[Dict]:
         blocks = []
         title = item.get("title", "Untitled")
         url   = item.get("url", "")
         blocks.append(self._h3(title, url))
 
-        meta = self._item_meta_line(item)
-        if meta:
-            blocks.append(self._para(meta, italic=True, color="gray"))
+        # Tag line: type · date · 🔗 link
+        blocks.append(self._item_tag_block(item))
 
         summary_zh = item.get("summary_zh", "")
         if summary_zh:
@@ -227,7 +292,7 @@ class NotionClient:
 
         entities = item.get("entities", [])
         if entities:
-            blocks.append(self._para(f"🏷 {', '.join(entities)}", color="blue"))
+            blocks.append(self._para(f"🏷 {', '.join(entities)}", color="gray"))
 
         blocks.append(self._blank())
         return blocks
@@ -238,9 +303,8 @@ class NotionClient:
         url   = item.get("url", "")
         blocks.append(self._h3(title, url))
 
-        meta = self._item_meta_line(item)
-        if meta:
-            blocks.append(self._para(meta, italic=True, color="gray"))
+        # Tag line: type · date · 🔗 link
+        blocks.append(self._item_tag_block(item))
 
         summary = item.get("summary", "")
         if summary:
@@ -251,7 +315,7 @@ class NotionClient:
 
         entities = item.get("entities", [])
         if entities:
-            blocks.append(self._para(f"🏷 {', '.join(entities)}", color="blue"))
+            blocks.append(self._para(f"🏷 {', '.join(entities)}", color="gray"))
 
         blocks.append(self._blank())
         return blocks
