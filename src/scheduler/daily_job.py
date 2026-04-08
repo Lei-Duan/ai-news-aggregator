@@ -18,6 +18,7 @@ from src.processors.filter import ContentFilter
 from src.processors.state import SeenItemsState
 
 from src.notion.client import NotionClient
+from src.notifiers.email import send_daily_briefing
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,19 @@ class DailyBriefingJob:
             # Mark all fetched items as seen AFTER successful Notion publish
             self._mark_all_seen(raw_content)
             self.state.save()
+
+            # Send email notification (no-op if not configured)
+            notion_url = f"https://notion.so/{page_id.replace('-', '')}"
+            recipients = [r.strip() for r in settings.email_recipients.split(",") if r.strip()]
+            send_daily_briefing(
+                sender=settings.email_sender,
+                password=settings.email_password,
+                recipients=recipients,
+                date=datetime.now(),
+                notion_page_url=notion_url,
+                sections=categorized_content,
+                fetch_stats=fetch_stats,
+            )
 
             logger.info(f"Daily briefing completed! Notion page: {page_id}")
             return page_id

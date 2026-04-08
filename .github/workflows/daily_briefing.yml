@@ -63,6 +63,9 @@ jobs:
           SUMMARY_MAX_LENGTH: "200"
           LOG_LEVEL: "INFO"
           LOG_FILE: "logs/aggregator.log"
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}
         run: python3 main.py --mode once
 
       - name: Upload logs on failure

@@ -29,6 +29,11 @@ class Settings:
     max_articles_per_source: int = int(os.getenv("MAX_ARTICLES_PER_SOURCE", "10"))
     summary_max_length: int = int(os.getenv("SUMMARY_MAX_LENGTH", "200"))
 
+    # Email notification (optional)
+    email_sender: str = os.getenv("GMAIL_USER", "")
+    email_password: str = os.getenv("GMAIL_APP_PASSWORD", "")
+    email_recipients: str = os.getenv("EMAIL_RECIPIENTS", "")  # comma-separated
+
     # Logging
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     log_file: str = os.getenv("LOG_FILE", "logs/aggregator.log")
