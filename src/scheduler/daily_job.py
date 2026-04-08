@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 from datetime import datetime
 from typing import Dict, List
 import yaml
@@ -47,16 +46,13 @@ class DailyBriefingJob:
             self.sources = yaml.safe_load(f)
 
     def initialize_clients(self):
-        self.twitter_fetcher = TwitterFetcher(
-            bearer_token=settings.twitter_bearer_token,
-        )
+        self.twitter_fetcher = TwitterFetcher(bearer_token=settings.twitter_bearer_token)
         self.github_fetcher = GitHubFetcher(token=settings.github_token)
         self.reddit_fetcher = RedditRSSFetcher()
         self.hackernews_fetcher = HackerNewsFetcher()
         self.rss_fetcher = RSSFetcher()
 
-        pod2txt_key = os.environ.get("POD2TXT_API_KEY", "")
-        self.podcast_fetcher = PodcastFetcher(pod2txt_api_key=pod2txt_key or None)
+        self.podcast_fetcher = PodcastFetcher()
         self.blog_fetcher = BlogFetcher(max_age_hours=72)
 
         self.summarizer = ContentSummarizer(anthropic_api_key=settings.anthropic_api_key)
@@ -177,11 +173,34 @@ class DailyBriefingJob:
         if not settings.twitter_bearer_token:
             logger.info("Twitter: no Bearer Token, skipping")
             return []
-        tweets = await self.twitter_fetcher.fetch_tweets_from_accounts(
+
+        # 1) Followed builder accounts (batch lookup)
+        account_tweets = await self.twitter_fetcher.fetch_tweets_from_accounts(
             accounts=self.sources["twitter"]["ai_accounts"],
             keywords=self.sources["twitter"]["keywords"],
             hours_back=24,
         )
+        logger.info(f"Twitter accounts: {len(account_tweets)} tweets")
+
+        # 2) Trending AI search — high-engagement tweets beyond followed accounts
+        trending_tweets = await self.twitter_fetcher.search_trending(
+            min_likes=2000,
+            hours_back=24,
+        )
+        logger.info(f"Twitter trending: {len(trending_tweets)} tweets")
+
+        # Merge and deduplicate by tweet ID
+        seen_ids = set()
+        merged = []
+        for t in account_tweets + trending_tweets:
+            if t.id not in seen_ids:
+                seen_ids.add(t.id)
+                merged.append(t)
+
+        # Sort by likes descending
+        merged.sort(key=lambda t: t.like_count, reverse=True)
+        logger.info(f"Twitter total after merge: {len(merged)} tweets")
+
         return [
             {
                 "type": "tweet",
@@ -200,7 +219,7 @@ class DailyBriefingJob:
                     "replies": t.reply_count,
                 },
             }
-            for t in tweets
+            for t in merged
         ]
 
     async def fetch_github_content(self) -> List[Dict]:

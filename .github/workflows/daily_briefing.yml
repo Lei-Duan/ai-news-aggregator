@@ -40,7 +40,6 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          POD2TXT_API_KEY: ${{ secrets.POD2TXT_API_KEY }}
           SCHEDULE_TIME: "09:00"
           TIMEZONE: "US/Pacific"
           MIN_QUALITY_SCORE: "0.7"

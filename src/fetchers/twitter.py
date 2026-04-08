@@ -25,6 +25,10 @@ MAX_TWEETS_PER_USER = 3
 INTER_REQUEST_DELAY = 0.2   # 200ms between per-user requests (polite)
 BATCH_SIZE = 100             # max usernames per /users/by request
 
+# Trending search: minimum engagement to count as "trending"
+TRENDING_MIN_LIKES = 2000
+TRENDING_MAX_RESULTS = 50   # per search query
+
 
 @dataclass
 class Tweet:
@@ -199,6 +203,116 @@ class TwitterFetcher:
             )
             tweets.append(tweet)
 
+        return tweets
+
+    async def search_trending(
+        self,
+        min_likes: int = TRENDING_MIN_LIKES,
+        hours_back: int = 24,
+        max_results: int = TRENDING_MAX_RESULTS,
+    ) -> List[Tweet]:
+        """
+        Search recent tweets for high-engagement AI content — not limited to
+        followed accounts. Finds genuinely trending discussions across all of X.
+
+        Uses /2/tweets/search/recent with engagement filters.
+        Requires Basic tier ($100/mo).
+        """
+        if not self.bearer_token:
+            return []
+
+        # Multiple focused queries to cover AI + builder community
+        queries = [
+            # Core AI tools & models — high signal
+            f'(LLM OR "AI agent" OR "vibe coding" OR "Claude" OR "GPT-4" OR "Gemini") '
+            f'lang:en -is:retweet -is:reply',
+
+            # Builder / indie hacker community
+            f'("build in public" OR "indie hacker" OR "AI SaaS" OR "vibe coding" OR MRR) '
+            f'lang:en -is:retweet -is:reply',
+
+            # Hot AI topics
+            f'("open source" AI OR "new model" OR "AI startup" OR "just shipped" OR "just launched") '
+            f'lang:en -is:retweet -is:reply',
+        ]
+
+        cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=hours_back)
+        start_time = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        all_tweets: List[Tweet] = []
+        seen_ids = set()
+
+        async with aiohttp.ClientSession() as session:
+            for query in queries:
+                try:
+                    tweets = await self._run_search(session, query, start_time, max_results)
+                    for t in tweets:
+                        if t.id not in seen_ids and t.like_count >= min_likes:
+                            seen_ids.add(t.id)
+                            all_tweets.append(t)
+                    await asyncio.sleep(INTER_REQUEST_DELAY)
+                except Exception as e:
+                    logger.error(f"Twitter trending search error: {e}")
+
+        all_tweets.sort(key=lambda t: t.like_count, reverse=True)
+        logger.info(f"Twitter trending: found {len(all_tweets)} tweets with ≥{min_likes} likes")
+        return all_tweets[:30]   # top 30 across all queries
+
+    async def _run_search(
+        self,
+        session: aiohttp.ClientSession,
+        query: str,
+        start_time: str,
+        max_results: int,
+    ) -> List[Tweet]:
+        params = {
+            "query": query,
+            "max_results": min(max_results, 100),
+            "start_time": start_time,
+            "tweet.fields": "created_at,public_metrics,note_tweet,entities,author_id",
+            "expansions": "author_id",
+            "user.fields": "name,username,description",
+        }
+        async with session.get(
+            f"{self.base_url}/tweets/search/recent",
+            headers=self._headers,
+            params=params,
+        ) as resp:
+            if resp.status == 403:
+                logger.warning("Twitter search: 403 — Basic tier required")
+                return []
+            if resp.status != 200:
+                logger.error(f"Twitter search: {resp.status} for query: {query[:60]}")
+                return []
+            data = await resp.json()
+
+        users = {
+            u["id"]: u
+            for u in data.get("includes", {}).get("users", [])
+        }
+
+        tweets = []
+        for td in data.get("data", []):
+            author = users.get(td.get("author_id", ""), {})
+            is_long = "note_tweet" in td
+            text = td.get("note_tweet", {}).get("text") or td["text"]
+            metrics = td.get("public_metrics", {})
+            created = datetime.fromisoformat(td["created_at"].replace("Z", "+00:00"))
+            username = author.get("username", "")
+            tweets.append(Tweet(
+                id=td["id"],
+                text=text,
+                author_username=username,
+                author_name=author.get("name", ""),
+                author_bio=author.get("description", ""),
+                created_at=created,
+                retweet_count=metrics.get("retweet_count", 0),
+                like_count=metrics.get("like_count", 0),
+                reply_count=metrics.get("reply_count", 0),
+                url=f"https://x.com/{username}/status/{td['id']}",
+                entities=td.get("entities", {}),
+                is_long=is_long,
+            ))
         return tweets
 
     def _matches_keywords(self, text: str, keywords: List[str]) -> bool:
