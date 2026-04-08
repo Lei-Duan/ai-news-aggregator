@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-import pytz
+from zoneinfo import ZoneInfo
 
 from config.settings import settings
 from src.scheduler.daily_job import DailyBriefingJob, run_daily_job
@@ -43,7 +43,7 @@ class AINewsAggregator:
         trigger = CronTrigger(
             hour=int(schedule_hour),
             minute=int(schedule_minute),
-            timezone=pytz.timezone(settings.timezone)
+            timezone=ZoneInfo(settings.timezone)
         )
 
         # Add job to scheduler
