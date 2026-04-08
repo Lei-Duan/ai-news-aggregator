@@ -136,4 +136,5 @@ config/local_config.py
 .env.production
 .DS_Store
 .vscode/
-.idea/
+.idea/.env.api
+.env.simple
