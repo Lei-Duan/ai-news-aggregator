@@ -50,6 +50,7 @@ class BlogPost:
     published_at: datetime
     author: str
     content: str          # cleaned full text (first 3000 chars)
+    date_unknown: bool = False
 
 
 class BlogFetcher:
@@ -181,9 +182,12 @@ class BlogFetcher:
             return None
 
         published_at = self._extract_date(html, url)
-        if published_at is None:
-            logger.debug(f"Blog: skipping {url} — publication date could not be determined")
-            return None
+        date_unknown = published_at is None
+        if date_unknown:
+            # Include the article but flag it — better to show undated content
+            # than silently drop potentially important posts.
+            published_at = datetime.now(tz=timezone.utc)
+            logger.debug(f"Blog: date unknown for {url}, including with flag")
 
         author = self._extract_author(html)
         content = self._extract_content(html)
@@ -193,6 +197,7 @@ class BlogFetcher:
             url=url,
             source=source_name,
             published_at=published_at,
+            date_unknown=date_unknown,
             author=author,
             content=content[:3000],
         )

@@ -299,13 +299,16 @@ class NotionClient:
         cat = item.get("category", "other")
         cat_label = self.CATEGORY_ZH.get(cat, f"📌 {cat}")
 
-        pub = item.get("published_at", "")
-        if hasattr(pub, "strftime"):
-            date_str = pub.strftime("%Y-%m-%d")
-        elif isinstance(pub, str) and pub:
-            date_str = pub[:10]
+        if item.get("date_unknown"):
+            date_str = "日期未知"
         else:
-            date_str = ""
+            pub = item.get("published_at", "")
+            if hasattr(pub, "strftime"):
+                date_str = pub.strftime("%Y-%m-%d")
+            elif isinstance(pub, str) and pub:
+                date_str = pub[:10]
+            else:
+                date_str = ""
 
         url = item.get("url", "")
 

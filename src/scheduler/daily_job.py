@@ -374,6 +374,7 @@ class DailyBriefingJob:
                 "author": post.author,
                 "source": post.source,
                 "published_at": post.published_at,
+                "date_unknown": post.date_unknown,
                 "engagement": {},
             }
             for post in posts
