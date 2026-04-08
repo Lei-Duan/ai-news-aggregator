@@ -4,6 +4,15 @@ All notable changes to AI News Aggregator are recorded here.
 
 ---
 
+## [0.3.1] - 2026-04-07
+
+### Fixed
+- **Reddit 403**：切换到 `old.reddit.com` + Firefox User-Agent，绕过 Cloudflare 对 cloud IP 的封锁
+- **Twitter trending 400 错误**：`min_faves:` operator 在 Basic tier 不被支持，改为程序内过滤 `like_count >= 2000`
+- **Summarizer JSON 截断**：大批次推文（>5条）会导致 Claude 输出被截断，改为 sub-batch 分割（tweet≤5, github≤10, article≤6）再合并
+
+---
+
 ## [0.3.0] - 2026-04-07
 
 ### Added
