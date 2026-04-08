@@ -138,3 +138,4 @@ config/local_config.py
 .vscode/
 .idea/.env.api
 .env.simple
+.DS_Store

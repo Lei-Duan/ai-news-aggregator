@@ -16,7 +16,6 @@ from src.processors.summarizer import ContentSummarizer
 from src.processors.classifier import ContentClassifier
 from src.processors.filter import ContentFilter
 from src.processors.state import SeenItemsState
-from src.scheduler.basic_processor import BasicContentProcessor
 
 from src.notion.client import NotionClient
 from config.settings import settings

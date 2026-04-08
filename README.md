@@ -1,235 +1,216 @@
-# AI News Aggregator
+# 🤖 AI News Aggregator
 
-An automated system that collects AI-related content from various sources (Twitter, GitHub, Reddit, Hacker News) and creates a daily briefing in Notion.
+> **每天早上自动抓取 AI 圈最值得看的内容，用 Claude 总结后推送到 Notion。**  
+> Runs daily on GitHub Actions — no server required, no manual work.
 
-## Features
+---
 
-- **Multi-source Content Collection**: Aggregates content from Twitter(X), GitHub, Reddit, Hacker News, and RSS feeds
-- **AI-powered Summarization**: Uses Claude API to summarize and categorize content
-- **Smart Filtering**: Filters content by quality, relevance, and engagement metrics
-- **Automatic Categorization**: Groups content into categories like Agent Projects, Model Releases, Research Papers, etc.
-- **Notion Integration**: Automatically creates daily briefing pages in your Notion workspace
-- **Scheduled Execution**: Runs daily at a configurable time (default: 9 AM PST)
+## 这是什么
 
-## Installation
+一个面向 **AI 从业者 / 独立开发者** 的每日简报机器人，自动完成以下流程：
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd ai-news-aggregator
+1. 从 7 个平台抓取过去 24 小时最有价值的 AI 内容
+2. 用 Claude 生成中英双语摘要 + 关键点 + 类型标签
+3. 把结构化简报写入你的 Notion 数据库
+
+整个流程跑在 GitHub Actions 上，每天 09:05 PST 自动触发，**无需本地服务器，Fork 即用**。
+
+---
+
+## 内容来源
+
+| 来源 | 抓取方式 | 筛选逻辑 |
+|---|---|---|
+| **Twitter / X** | API v2（需 Basic 订阅） | 25 个精选 AI 账号 + 全平台 ≥2000 likes 热推 |
+| **GitHub** | REST API | 按 star 增速（stars/day）排序，优先发现快速崛起新项目 |
+| **Reddit** | RSS（免认证） | r/LocalLLaMA、r/MachineLearning 等 14 个高质量社区 |
+| **Hacker News** | 官方 Algolia API | AI 相关，≥30 points 过滤 |
+| **RSS 订阅** | feedparser | OpenAI、Anthropic、Google、HuggingFace 等官方博客 |
+| **技术博客** | 直接爬取 | Anthropic + OpenAI 官网最新文章 |
+| **AI 播客** | RSS | Lex Fridman、Latent Space、No Priors 等 6 个，72h 内新集 |
+
+Twitter 跟踪账号（25 个）：@karpathy · @AndrewYNg · @ylecun · @swyx · @ggerganov · @fchollet · @goodside · @levelsio · @marc\_lou\_ · @AnthropicAI · @LangChainAI · @cursor\_ai 等
+
+---
+
+## Notion 输出示例
+
+每天生成一个结构化 Notion 页面：
+
+```
+🤖 AI 日报 | AI Daily Briefing — 2026-04-08
+生成时间: 2026-04-08 09:12  ·  共 28 条
+
+📡 抓取状态
+  ✅ Twitter/X: 12 items    ✅ GitHub: 8 items
+  ✅ Reddit: 6 items         ✅ Hacker News: 5 items
+  ⚠️ Podcasts: 0 items      ✅ Tech Blogs: 3 items
+
+📊 今日速览（汇总表格）
+  类别          │ 标题                        │ 来源        │ 中文摘要
+  ─────────────┼─────────────────────────────┼────────────┼──────────
+  🚀 基础模型迭代 │ GPT-4o mini gets smarter... │ @OpenAI    │ OpenAI 发布...
+  🤖 Agent应用   │ Claude can now use tools... │ @Anthropic │ Anthropic 宣布...
+
+📋 详细内容（按类别，中英双语）
+  每条内容包含：
+  🚀 基础模型迭代   🕐 2026-04-08   🔗 原文链接
+  [中文摘要段落]
+  [英文摘要 + 3-5 条关键要点]
+  🏷 GPT-4o · OpenAI · multimodal
 ```
 
-2. Install dependencies:
+---
+
+## 快速开始（Fork 使用）
+
+### 第一步：Fork 本项目
+
+点击右上角 **Fork**，在自己账号下创建副本。
+
+### 第二步：准备 API 密钥
+
+| 密钥 | 用途 | 是否必需 | 获取方式 |
+|---|---|---|---|
+| `ANTHROPIC_API_KEY` | Claude 摘要 | **必需** | [console.anthropic.com](https://console.anthropic.com) |
+| `NOTION_TOKEN` | 写入 Notion | **必需** | [notion.so/my-integrations](https://www.notion.so/my-integrations) |
+| `NOTION_DATABASE_ID` | 目标数据库 ID | **必需** | 见下方说明 |
+| `GH_TOKEN` | 抓取 GitHub trending | 推荐 | GitHub → Settings → Developer settings → PAT（`public_repo` 权限） |
+| `TWITTER_BEARER_TOKEN` | Twitter 内容 | 可选 | [developer.twitter.com](https://developer.twitter.com)，需 Basic $100/mo |
+
+> Twitter 不是必需的。没有 Bearer Token 时，Twitter 模块自动跳过，其他来源正常运行。
+
+**获取 Notion Database ID：**
+1. 在 Notion 新建一个数据库（需包含 `Name`（Title）、`Date`、`Tags`（Multi-select）三个属性）
+2. 打开数据库页面，点击右上角 `···` → **Copy link**
+3. 链接格式为 `https://notion.so/username/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx?v=...`，其中 32 位字母数字部分即为 Database ID
+4. 在数据库页面 `···` → **Add connections** → 选择你创建的 Integration
+
+### 第三步：配置 GitHub Secrets
+
+进入 Fork 的 repo → **Settings → Secrets and variables → Actions → New repository secret**，逐一添加：
+
+```
+ANTHROPIC_API_KEY     sk-ant-...
+NOTION_TOKEN          secret_...
+NOTION_DATABASE_ID    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+GH_TOKEN              ghp_...
+TWITTER_BEARER_TOKEN  AAAA...（可选）
+```
+
+### 第四步：启用 GitHub Actions
+
+1. 进入 Fork 的 repo → **Actions** 标签
+2. 点击 **"I understand my workflows, go ahead and enable them"**
+3. 左侧选择 `Daily AI News Briefing` → 右侧 **Run workflow** 手动触发一次测试
+
+✅ 测试成功后，之后每天 **09:05 PST（北京时间 01:05）** 自动运行。
+
+---
+
+## 本地运行
+
 ```bash
+# 安装依赖（Python 3.9+）
 pip install -r requirements.txt
-```
 
-3. Set up environment variables:
-```bash
+# 配置密钥
 cp .env.example .env
-# Edit .env with your API keys
-```
+# 编辑 .env，填入你的 API 密钥
 
-## Configuration
-
-### Required API Keys
-
-1. **Twitter API v2**: Get credentials from https://developer.twitter.com/
-2. **GitHub Personal Access Token**: Create at https://github.com/settings/tokens
-3. **Anthropic API Key**: Get from https://console.anthropic.com/
-4. **Notion Integration Token**: Create at https://www.notion.so/my-integrations
-
-### Notion Setup
-
-1. Create a new Notion page for your AI briefings
-2. Create an integration and get the token
-3. Share your page with the integration
-4. Create a database with the following properties:
-   - Name (Title)
-   - Date (Date)
-   - Tags (Multi-select)
-   - Status (Select)
-   - Items Count (Number)
-
-### Source Configuration
-
-Edit `config/sources.yaml` to customize:
-- Twitter accounts to monitor
-- GitHub organizations and topics
-- Reddit subreddits
-- RSS feeds
-- Keyword filters
-
-## Usage
-
-### Run Once
-```bash
+# 运行完整简报
 python main.py --mode once
 ```
 
-### Test Mode (Limited content)
-```bash
-python main.py --mode test
+---
+
+## 自定义配置
+
+所有来源配置在 [`config/sources.yaml`](config/sources.yaml)，直接修改即可：
+
+```yaml
+# 添加 / 删除 Twitter 关注账号
+twitter:
+  ai_accounts:
+    - "@karpathy"
+    - "@your_account"
+
+# 调整 GitHub 关注 topic
+github:
+  topics:
+    - "llm"
+    - "ai-agent"
+
+# 添加任意 RSS 源
+rss_feeds:
+  - "https://your-blog.com/feed.xml"
 ```
 
-### Scheduled Mode
-```bash
-python main.py --mode schedule
-```
-
-This will run the aggregator daily at the configured time.
-
-## Content Categories
-
-The system categorizes content into:
-- **Agent Projects**: Autonomous agents and frameworks
-- **Model Releases**: New AI models and updates
-- **Research Papers**: Academic papers and publications
-- **Industry News**: Company news and industry updates
-- **Technical Tutorials**: How-to guides and implementations
-- **Product Launches**: New AI products and features
-- **Open Source**: Open source projects and tools
-
-## Filtering Criteria
-
-Content is filtered based on:
-- Publication date (default: last 24 hours)
-- Engagement metrics (likes, stars, upvotes)
-- Quality score (AI-powered assessment)
-- Relevance to AI/ML field
-- Source authority
-- Keyword matching
-
-## Output Format
-
-Each Notion page includes:
-- Categorized sections with emojis
-- Item title with direct link
-- Summary and key points
-- Source and author information
-- Tags and entities
-- Quality and relevance scores
-
-## Example Output
-
-Below is a sample of what a daily Notion briefing looks like:
-
 ---
 
-### 📅 AI News Briefing — April 7, 2026
+## 项目结构
 
----
-
-#### 🤖 Agent Projects (3 items)
-
-**[browser-use/web-ui](https://github.com/browser-use/web-ui)** ⭐ 8,241 · 📈 823 stars/day · TypeScript
-> Web UI for Browser Use — lets AI agents control a real browser with a visual interface. Gained 8k stars in 10 days, one of the fastest-rising agent repos this month.
-> **Key points:** visual browser control · OpenAI/Claude compatible · Docker support
-
----
-
-**r/LocalLLaMA · 2.1k upvotes**
-[I built an agent that autonomously files my tax return — here's what I learned](https://reddit.com/...)
-> Solo dev shares a working agentic pipeline that handles PDF parsing, form filling, and e-filing. Includes source code and a breakdown of failure modes.
-> **Key points:** real-world agent · tax automation · RAG for document parsing
-
----
-
-#### 🚀 Product Launches (2 items)
-
-**[HN · 847 points] Show HN: I built a SaaS that transcribes and summarizes Zoom calls using Whisper + Claude](https://news.ycombinator.com/...)**
-> Indie hacker hit $800 MRR in 3 weeks. Post includes full stack breakdown (Next.js + Supabase + Vercel).
-> **Key points:** $800 MRR · Whisper + Claude · full stack breakdown
-
----
-
-#### 📈 Fast-Rising GitHub Repos (5 items)
-
-| Repo | Stars | Speed | Language | Description |
-|------|-------|-------|----------|-------------|
-| [kortix-ai/suna](https://github.com/kortix-ai/suna) | 9,102 | 910/day | Python | Open-source generalist AI agent |
-| [landing-ai/vision-agent](https://github.com/landing-ai/vision-agent) | 4,200 | 280/day | Python | Vision-language agent framework |
-| [mendableai/firecrawl](https://github.com/mendableai/firecrawl) | 3,800 | 190/day | TypeScript | Web scraping API for LLMs |
-
----
-
-#### 📰 From the Builder Community
-
-**@levelsio** · 14k likes
-> "Just hit $3M ARR with PhotoAI. Still solo. Still building in public. The secret: pick one problem, stay boring, ship fast."
-
-**r/buildinpublic · 1.4k upvotes**
-> "Launched my AI resume screener 3 weeks ago. $0 → $2,400 MRR. Here's the exact landing page copy that converted."
-
----
-
-*Generated by AI News Aggregator · Sources: GitHub, Reddit, Hacker News, Twitter*
-
-## Customization
-
-### Adding New Sources
-
-1. Create a new fetcher in `src/fetchers/`
-2. Implement the fetching logic
-3. Add configuration to `config/sources.yaml`
-4. Update the daily job in `src/scheduler/daily_job.py`
-
-### Modifying Filters
-
-Edit the filter configuration in `src/scheduler/daily_job.py`:
-```python
-config = {
-    "days": 1,
-    "min_engagement": 10,
-    "required_keywords": [],
-    "excluded_keywords": ["crypto", "nft"],
-    "min_quality_score": 0.7
-}
-```
-
-### Changing Schedule
-
-Update the schedule in `.env`:
-```
-SCHEDULE_TIME=09:00
-TIMEZONE=US/Pacific
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **API Rate Limits**: The system includes rate limiting, but you may need to adjust fetch intervals
-2. **Notion Permissions**: Ensure your integration has access to the database
-3. **Content Quality**: Adjust quality thresholds in settings if getting too much/too little content
-
-### Logs
-
-Check logs in `logs/aggregator.log` for detailed execution information.
-
-## Development
-
-### Project Structure
 ```
 ai-news-aggregator/
-├── config/                 # Configuration files
-│   ├── settings.py        # Environment settings
-│   └── sources.yaml       # Source configurations
+├── main.py                     # 入口
+├── config/
+│   ├── settings.py             # 从环境变量读取配置
+│   └── sources.yaml            # 内容来源配置
 ├── src/
-│   ├── fetchers/          # Content fetchers
-│   ├── processors/        # Content processing
-│   ├── notion/           # Notion integration
-│   └── scheduler/        # Job scheduling
-├── logs/                  # Log files
-├── main.py               # Main entry point
-└── requirements.txt      # Dependencies
+│   ├── fetchers/
+│   │   ├── twitter.py          # Twitter API v2
+│   │   ├── github.py           # GitHub trending
+│   │   ├── reddit_rss.py       # Reddit RSS（免认证）
+│   │   ├── hackernews.py       # Hacker News
+│   │   ├── rss.py              # 通用 RSS
+│   │   ├── podcast.py          # 播客 RSS
+│   │   └── blog.py             # Anthropic / OpenAI 博客爬取
+│   ├── processors/
+│   │   ├── summarizer.py       # Claude 批量摘要
+│   │   ├── filter.py           # 多维过滤
+│   │   ├── classifier.py       # 内容分类
+│   │   └── state.py            # 跨日去重
+│   ├── notion/
+│   │   └── client.py           # Notion 页面构建与写入
+│   └── scheduler/
+│       └── daily_job.py        # 主调度逻辑
+├── state/
+│   └── seen_items.json         # 去重状态（CI 自动提交）
+└── .github/workflows/
+    └── daily_briefing.yml      # GitHub Actions 定时任务
 ```
 
-### Running Tests
-```bash
-pytest tests/
-```
+---
+
+## 技术亮点
+
+| 特性 | 实现方式 |
+|---|---|
+| **零服务器** | 完全运行在 GitHub Actions 免费额度内 |
+| **跨日去重** | `state/seen_items.json` 记录已处理 ID，CI 每次运行后自动 commit 回 repo |
+| **批量 AI 调用** | 多条内容合并为单次 Claude API 请求，降低 token 费用 |
+| **防截断分批** | 按类型自动分批（tweet ≤5/次，article ≤6/次），合并结果，避免 JSON 截断 |
+| **星速排序** | GitHub 按 stars/day 而非总 stars 排序，优先发现新兴项目 |
+| **容错隔离** | 每个数据源独立 try/except，单个来源失败不影响其他来源 |
+
+---
+
+## 常见问题
+
+**Twitter 内容为空？**  
+Twitter API Basic 订阅需要 $100/月。没有 token 时所有其他来源正常工作。
+
+**Notion 没有新页面？**  
+检查 `NOTION_DATABASE_ID` 是否为 32 位（不含连字符），以及 Integration 是否已在该数据库里 connect。
+
+**修改运行时间？**  
+编辑 `.github/workflows/daily_briefing.yml` 中的 `cron: '5 17 * * *'`（UTC 时间）。时间转换：北京时间 = UTC+8，PST = UTC-8。
+
+**Fork 后会用到原作者的 API 吗？**  
+不会。GitHub Secrets 不随 Fork 传递，定时任务在 Fork 中默认也是禁用状态。
+
+---
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT
