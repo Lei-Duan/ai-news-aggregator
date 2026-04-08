@@ -123,13 +123,26 @@ IMPORTANT:
         return final_prompt
 
     async def batch_summarize(self, items: List[Dict], item_type: str) -> List[SummaryResult]:
-        """
-        Batch process multiple items in ONE API call
-        This drastically reduces token overhead vs individual calls
-        """
+        """Batch process items, splitting into safe sub-batches to avoid truncation."""
         if not items:
             return []
 
+        # Tweets can be long (note_tweet); keep sub-batches small to avoid truncation
+        max_per_call = {"tweet": 5, "github": 10}.get(item_type, 6)
+
+        if len(items) <= max_per_call:
+            return await self._summarize_batch(items, item_type)
+
+        # Split and concatenate results
+        results = []
+        for i in range(0, len(items), max_per_call):
+            chunk = items[i:i + max_per_call]
+            chunk_results = await self._summarize_batch(chunk, item_type)
+            results.extend(chunk_results)
+        return results
+
+    async def _summarize_batch(self, items: List[Dict], item_type: str) -> List[SummaryResult]:
+        """Single API call for one sub-batch."""
         prompt = self._build_batch_prompt(items, item_type)
 
         # Give generous token budget so the response is never truncated mid-JSON

@@ -221,23 +221,19 @@ class TwitterFetcher:
         if not self.bearer_token:
             return []
 
-        # min_faves pre-filter at API level to reduce result set
-        # (programmatic filter below applies the real threshold)
-        api_min = max(100, min_likes // 20)
-
-        # Multiple focused queries — broad enough to catch viral AI content
+        # Note: min_faves: operator not supported on Basic tier — filter programmatically below
         queries = [
             # Viral AI model / tool releases
-            f'(LLM OR "AI agent" OR "vibe coding" OR Claude OR "GPT-4o" OR Gemini OR Llama) '
-            f'lang:en -is:retweet -is:reply min_faves:{api_min}',
+            '(LLM OR "AI agent" OR "vibe coding" OR Claude OR "GPT-4o" OR Gemini OR Llama) '
+            'lang:en -is:retweet -is:reply',
 
-            # Indie builder wins — MRR milestones, launches, revenue updates
-            f'("build in public" OR "indie hacker" OR "AI SaaS" OR MRR OR "just launched" OR "just shipped") '
-            f'lang:en -is:retweet -is:reply min_faves:{api_min}',
+            # Indie builder wins — MRR milestones, launches, revenue
+            '("build in public" OR "indie hacker" OR "AI SaaS" OR MRR OR "just launched" OR "just shipped") '
+            'lang:en -is:retweet -is:reply',
 
-            # Breaking AI news & open source releases
-            f'("open source" OR "new model" OR "AI startup" OR benchmark OR "state of the art") '
-            f'(AI OR LLM OR ML) lang:en -is:retweet -is:reply min_faves:{api_min}',
+            # Breaking AI news & open source
+            '("new model" OR "open source" AI OR benchmark OR "state of the art") '
+            '(AI OR LLM OR ML) lang:en -is:retweet -is:reply',
         ]
 
         cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=hours_back)
