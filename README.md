@@ -167,6 +167,24 @@ rss_feeds:
 
 ---
 
+### 邮件推送（可选）
+
+每次简报生成后自动发送 HTML 邮件，包含抓取状态、今日精选（前 15 条）和 Notion 页面链接。
+
+**配置步骤：**
+1. Gmail 账号开启两步验证 → [Google 账号安全设置](https://myaccount.google.com/security) → 应用专用密码 → 生成 16 位密码
+2. 在 GitHub Secrets 添加：
+
+```
+GMAIL_USER          your_gmail@gmail.com
+GMAIL_APP_PASSWORD  xxxx xxxx xxxx xxxx
+EMAIL_RECIPIENTS    you@example.com,other@example.com
+```
+
+不配置时静默跳过，不影响正常运行。支持多个收件人（逗号分隔）。
+
+---
+
 ### 常见问题
 
 **Twitter 内容为空？**  
@@ -310,6 +328,24 @@ github:
 rss_feeds:
   - "https://your-blog.com/feed.xml"
 ```
+
+---
+
+### Email Notifications (Optional)
+
+After each briefing, an HTML digest email is sent containing fetch status, top 15 items, and a link to the full Notion page.
+
+**Setup:**
+1. Enable 2FA on your Gmail account → [Google Account Security](https://myaccount.google.com/security) → App passwords → generate a 16-character password
+2. Add to GitHub Secrets:
+
+```
+GMAIL_USER          your_gmail@gmail.com
+GMAIL_APP_PASSWORD  xxxx xxxx xxxx xxxx
+EMAIL_RECIPIENTS    you@example.com,other@example.com
+```
+
+No-op if not configured. Supports multiple recipients (comma-separated).
 
 ---
 

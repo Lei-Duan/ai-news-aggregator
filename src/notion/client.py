@@ -259,17 +259,28 @@ class NotionClient:
         blocks.append(self._build_summary_table(sections))   # ← table; will be split here
         blocks.append(self._divider())
 
-        # ── 4. Detailed sections ───────────────────────────────────────────
-        blocks.append(self._h2("📋 详细内容 / Detailed Content"))
+        # ── 4. Detailed sections — Chinese first, then English ────────────────
+        # Chinese block
+        blocks.append(self._h2("📋 详细内容（中文）"))
         for section_title, items in sections.items():
             if not items:
                 continue
             meta = self.SECTION_META.get(section_title, {"emoji": "📌", "zh": section_title})
-            blocks.append(self._h2(
-                f"{meta['emoji']} {meta['zh']} / {section_title} ({len(items)})"
-            ))
+            blocks.append(self._h2(f"{meta['emoji']} {meta['zh']} ({len(items)})"))
             for item in items:
                 blocks.extend(self._create_item_blocks_zh(item))
+            blocks.append(self._blank())
+
+        blocks.append(self._divider())
+
+        # English block
+        blocks.append(self._h2("📋 Detailed Content (English)"))
+        for section_title, items in sections.items():
+            if not items:
+                continue
+            meta = self.SECTION_META.get(section_title, {"emoji": "📌", "zh": section_title})
+            blocks.append(self._h2(f"{meta['emoji']} {section_title} ({len(items)})"))
+            for item in items:
                 blocks.extend(self._create_item_blocks_en(item))
             blocks.append(self._blank())
 
