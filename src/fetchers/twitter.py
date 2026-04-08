@@ -221,19 +221,23 @@ class TwitterFetcher:
         if not self.bearer_token:
             return []
 
-        # Multiple focused queries to cover AI + builder community
+        # min_faves pre-filter at API level to reduce result set
+        # (programmatic filter below applies the real threshold)
+        api_min = max(100, min_likes // 20)
+
+        # Multiple focused queries — broad enough to catch viral AI content
         queries = [
-            # Core AI tools & models — high signal
-            f'(LLM OR "AI agent" OR "vibe coding" OR "Claude" OR "GPT-4" OR "Gemini") '
-            f'lang:en -is:retweet -is:reply',
+            # Viral AI model / tool releases
+            f'(LLM OR "AI agent" OR "vibe coding" OR Claude OR "GPT-4o" OR Gemini OR Llama) '
+            f'lang:en -is:retweet -is:reply min_faves:{api_min}',
 
-            # Builder / indie hacker community
-            f'("build in public" OR "indie hacker" OR "AI SaaS" OR "vibe coding" OR MRR) '
-            f'lang:en -is:retweet -is:reply',
+            # Indie builder wins — MRR milestones, launches, revenue updates
+            f'("build in public" OR "indie hacker" OR "AI SaaS" OR MRR OR "just launched" OR "just shipped") '
+            f'lang:en -is:retweet -is:reply min_faves:{api_min}',
 
-            # Hot AI topics
-            f'("open source" AI OR "new model" OR "AI startup" OR "just shipped" OR "just launched") '
-            f'lang:en -is:retweet -is:reply',
+            # Breaking AI news & open source releases
+            f'("open source" OR "new model" OR "AI startup" OR benchmark OR "state of the art") '
+            f'(AI OR LLM OR ML) lang:en -is:retweet -is:reply min_faves:{api_min}',
         ]
 
         cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=hours_back)

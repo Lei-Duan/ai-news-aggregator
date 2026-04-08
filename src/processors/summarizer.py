@@ -132,48 +132,25 @@ IMPORTANT:
 
         prompt = self._build_batch_prompt(items, item_type)
 
-        # Articles need ~400 tokens each (150-word summary + key_points + other fields)
-        # Tweets need ~200 tokens each; github repos ~300 tokens each
-        tokens_per_item = {"tweet": 200, "github": 300}.get(item_type, 400)
-        max_tokens = min(300 + len(items) * tokens_per_item, 8000)
+        # Give generous token budget so the response is never truncated mid-JSON
+        tokens_per_item = {"tweet": 350, "github": 400}.get(item_type, 500)
+        max_tokens = min(500 + len(items) * tokens_per_item, 8000)
 
         try:
             response = await self.client.messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=max_tokens,
-                temperature=0.2,  # Low temperature for consistent output
+                temperature=0.2,
                 messages=[{"role": "user", "content": prompt}]
             )
 
-            text = response.content[0].text
+            text = response.content[0].text.strip()
 
-            # Extract JSON from response
-            try:
-                results = json.loads(text)
-            except json.JSONDecodeError:
-                import re
-                # Try code block first, then greedy outer array match
-                code_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', text, re.DOTALL)
-                if code_match:
-                    try:
-                        results = json.loads(code_match.group(1))
-                    except Exception:
-                        results = None
-                else:
-                    results = None
-
-                if results is None:
-                    # Greedy match for outermost [...]
-                    json_match = re.search(r'(\[.*\])', text, re.DOTALL)
-                    if json_match:
-                        try:
-                            results = json.loads(json_match.group(1))
-                        except Exception:
-                            logger.error(f"Could not extract JSON from batch response: {text[:200]}...")
-                            return []
-                    else:
-                        logger.error(f"Could not extract JSON from batch response: {text[:200]}...")
-                        return []
+            # Robust JSON extraction: track bracket nesting depth rather than regex
+            results = self._extract_json_array(text)
+            if results is None:
+                logger.error(f"Could not extract JSON from batch response: {text[:300]}...")
+                return []
 
             # Convert to SummaryResult objects with graceful error handling
             summaries = []
@@ -199,6 +176,63 @@ IMPORTANT:
         except Exception as e:
             logger.error(f"Error in batch summarization: {e}")
             return []
+
+    def _extract_json_array(self, text: str) -> Optional[list]:
+        """
+        Find and parse the first complete JSON array in text.
+        Tracks bracket/brace nesting and string escaping — handles nested arrays
+        correctly unlike a greedy regex which can mis-match on nested structures.
+        """
+        # 1. Direct parse (ideal case: Claude returned pure JSON)
+        try:
+            result = json.loads(text)
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+        # 2. Strip markdown code fences and retry
+        import re
+        stripped = re.sub(r'^```(?:json)?\s*', '', text, flags=re.MULTILINE)
+        stripped = re.sub(r'\s*```$', '', stripped, flags=re.MULTILINE).strip()
+        try:
+            result = json.loads(stripped)
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+        # 3. Find the first `[` and walk forward tracking depth
+        start = text.find('[')
+        if start == -1:
+            return None
+
+        depth = 0
+        in_string = False
+        escape_next = False
+
+        for i, ch in enumerate(text[start:], start):
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\' and in_string:
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == '[':
+                depth += 1
+            elif ch == ']':
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:i + 1])
+                    except json.JSONDecodeError:
+                        return None
+        return None
 
     def filter_by_quality(self, summaries: List[SummaryResult],
                          min_quality_score: float = 0.7,

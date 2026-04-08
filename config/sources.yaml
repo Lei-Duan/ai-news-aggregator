@@ -3,25 +3,35 @@
 # Twitter/X accounts - Build in Public & AI Tool Builders
 twitter:
   ai_accounts:
-    # Build in public legends
-    - "@levelsio"           # Pieter Levels - builds AI tools in public
+    # Build in public — indie hackers & AI SaaS builders
+    - "@levelsio"           # Pieter Levels - AI tools, $3M+ ARR
     - "@dannypostmaa"       # Danny Postma - AI SEO tools
     - "@marc_lou_"          # Marc Lou - AI SaaS builder
     - "@tibo_maker"         # Tibo - builds AI tools
     - "@arvidkahl"          # Arvid Kahl - author, builds in public
     - "@simonhoiberg"       # Simon Hoiberg - SaaS builder
-    - "@siddharth_1729"     # Siddharth - AI tool builder
-    - "@gabe_flc"           # Gabe - builds in public
-    - "@felix12777"         # Felix - indie hacker
     - "@andreyazimov"       # Andrey - Mac apps builder
+    - "@swyx"               # swyx - AI engineer / Latent Space
+    - "@venturetwins"       # Venture Twins - indie builders
+    - "@thisiskp_"          # KP - builds in public, AI tools
 
-    # AI community leaders
+    # AI researchers & engineers
+    - "@karpathy"           # Andrej Karpathy - ex-OpenAI/Tesla
     - "@AndrewYNg"          # Andrew Ng
-    - "@karpathy"           # Andrej Karpathy
-    - "@jeremyphoward"      # Jeremy Howard
-    - "@hardmaru"           # Hardmaru - agent projects
-    - "@_akhaliq"           # AK - AI news
+    - "@ylecun"             # Yann LeCun - Meta AI
+    - "@jeremyphoward"      # Jeremy Howard - fast.ai
+    - "@_akhaliq"           # AK - daily AI papers
+    - "@drjimfan"           # Jim Fan - NVIDIA AI
+    - "@fchollet"           # François Chollet - Keras
+    - "@goodside"           # Riley Goodside - prompt engineering
+    - "@ggerganov"          # Georgi Gerganov - llama.cpp
+
+    # AI companies & products
     - "@huggingface"        # Hugging Face
+    - "@LangChainAI"        # LangChain
+    - "@cursor_ai"          # Cursor AI editor
+    - "@perplexity_ai"      # Perplexity AI
+    - "@AnthropicAI"        # Anthropic official
 
   # Keywords for AI + Build in Public content
   keywords:

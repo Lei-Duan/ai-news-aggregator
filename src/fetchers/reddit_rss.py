@@ -1,11 +1,25 @@
+"""
+Reddit fetcher via RSS (no auth required, no 403 from cloud IPs).
+Uses /r/{subreddit}/hot.rss which works from any IP.
+Score data is limited in RSS, so we sort by recency instead.
+"""
+
 import asyncio
 import aiohttp
-from typing import List, Dict, Optional
-from datetime import datetime, timezone
+import feedparser
 import logging
+import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
+
+RSS_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
 
 @dataclass
 class RedditRSSPost:
@@ -24,134 +38,98 @@ class RedditRSSPost:
 
 
 class RedditRSSFetcher:
-    """Fetch Reddit content via JSON API - No API key required, returns real score data."""
-
     BASE_URL = "https://www.reddit.com"
-    HEADERS = {"User-Agent": "AI-News-Aggregator/1.0 (research project)"}
 
     def __init__(self):
         self.timeout = aiohttp.ClientTimeout(total=30)
 
-    async def fetch_subreddit_feeds(self, subreddits: List[str], sort_by: str = "hot") -> List[RedditRSSPost]:
-        """Fetch top-of-day posts from multiple subreddits via JSON API."""
-        all_posts = []
+    async def fetch_subreddit_feeds(self, subreddits: List[str]) -> List[RedditRSSPost]:
+        all_posts: List[RedditRSSPost] = []
 
-        async with aiohttp.ClientSession(headers=self.HEADERS, timeout=self.timeout) as session:
+        async with aiohttp.ClientSession(
+            headers={"User-Agent": RSS_USER_AGENT},
+            timeout=self.timeout,
+        ) as session:
             for subreddit in subreddits:
                 try:
-                    posts = await self._fetch_subreddit_json(session, subreddit)
+                    posts = await self._fetch_rss(session, subreddit)
                     all_posts.extend(posts)
-                    logger.info(f"Fetched {len(posts)} posts from r/{subreddit}")
-                    await asyncio.sleep(1)  # polite rate limiting
+                    logger.info(f"Reddit RSS r/{subreddit}: {len(posts)} posts")
+                    await asyncio.sleep(1)
                 except Exception as e:
                     logger.error(f"Error fetching r/{subreddit}: {e}")
 
-        # Sort by score descending
-        all_posts.sort(key=lambda x: x.score, reverse=True)
-        return all_posts[:100]
+        all_posts.sort(key=lambda p: p.created_at, reverse=True)
+        return all_posts[:120]
 
-    async def _fetch_subreddit_json(self, session: aiohttp.ClientSession, subreddit: str) -> List[RedditRSSPost]:
-        """Fetch today's top posts from a subreddit using the JSON API."""
-        url = f"{self.BASE_URL}/r/{subreddit}/top.json"
-        params = {"limit": 25, "t": "day"}
-
-        async with session.get(url, params=params) as response:
-            if response.status == 429:
-                logger.warning(f"Rate limited on r/{subreddit}, skipping")
+    async def _fetch_rss(self, session: aiohttp.ClientSession, subreddit: str) -> List[RedditRSSPost]:
+        url = f"{self.BASE_URL}/r/{subreddit}/hot.rss"
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                logger.error(f"Reddit RSS {resp.status}: r/{subreddit}")
                 return []
-            if response.status != 200:
-                logger.error(f"Reddit JSON error {response.status} for r/{subreddit}")
-                return []
+            content = await resp.text()
 
-            data = await response.json()
-            posts = []
-            for child in data.get("data", {}).get("children", []):
-                post = child.get("data", {})
-                try:
-                    parsed = self._parse_post(post, subreddit)
-                    if parsed and self._is_ai_or_builder_related(parsed.title + " " + parsed.text):
-                        posts.append(parsed)
-                except Exception as e:
-                    logger.error(f"Error parsing post: {e}")
-            return posts
+        loop = asyncio.get_event_loop()
+        feed = await loop.run_in_executor(None, feedparser.parse, content)
 
-    def _parse_post(self, post: Dict, subreddit: str) -> Optional[RedditRSSPost]:
-        created_utc = post.get("created_utc", 0)
-        created_at = datetime.fromtimestamp(created_utc, tz=timezone.utc) if created_utc else datetime.now(tz=timezone.utc)
-
-        # selftext for text posts; for link posts use the title as text
-        text = post.get("selftext", "").strip()
-        if not text or text == "[removed]" or text == "[deleted]":
-            text = post.get("title", "")
-
-        permalink = post.get("permalink", "")
-        if permalink:
-            permalink = f"https://www.reddit.com{permalink}"
-
-        return RedditRSSPost(
-            id=post.get("id", ""),
-            title=post.get("title", ""),
-            text=text[:500],  # cap text length
-            author=post.get("author", "unknown"),
-            subreddit=post.get("subreddit", subreddit),
-            url=post.get("url", permalink),
-            score=post.get("score", 0),
-            num_comments=post.get("num_comments", 0),
-            created_at=created_at,
-            permalink=permalink,
-            flair=post.get("link_flair_text"),
-            upvote_ratio=post.get("upvote_ratio", 0.0),
-        )
-
-    def _is_ai_or_builder_related(self, text: str) -> bool:
-        """Check if post is relevant to AI or indie builder community."""
-        keywords = [
-            # AI / ML
-            "ai", "llm", "gpt", "claude", "gemini", "llama", "mistral", "openai",
-            "anthropic", "huggingface", "deepseek", "agent", "chatbot", "ml",
-            "machine learning", "deep learning", "neural", "transformer", "diffusion",
-            "fine-tun", "rag", "embedding", "inference", "model", "generative",
-            # Builder community
-            "build in public", "buildinpublic", "indie hacker", "indiehacker",
-            "side project", "saas", "mrr", "arr", "startup", "solo founder",
-            "ship", "launch", "product hunt", "vibe coding", "cursor", "windsurf",
-        ]
-        text_lower = text.lower()
-        return any(kw in text_lower for kw in keywords)
-
-    async def fetch_combined_feed(self, subreddits: List[str], keywords: List[str] = None) -> List[RedditRSSPost]:
-        """Fetch and optionally filter posts by keywords."""
-        posts = await self.fetch_subreddit_feeds(subreddits)
-
-        if keywords:
-            filtered = []
-            for post in posts:
-                text = (post.title + " " + post.text).lower()
-                if any(kw.lower() in text for kw in keywords):
-                    filtered.append(post)
-            return filtered
-
+        posts = []
+        for entry in feed.entries:
+            post = self._parse_entry(entry, subreddit)
+            if post and self._is_relevant(post.title + " " + post.text):
+                posts.append(post)
         return posts
 
-    async def fetch_user_feed(self, username: str) -> List[RedditRSSPost]:
-        """Fetch recent posts from a specific Reddit user."""
-        url = f"{self.BASE_URL}/user/{username}/submitted.json"
-        params = {"limit": 25, "sort": "new"}
+    def _parse_entry(self, entry, subreddit: str) -> Optional[RedditRSSPost]:
+        try:
+            published = None
+            if hasattr(entry, "published_parsed") and entry.published_parsed:
+                published = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+            else:
+                published = datetime.now(tz=timezone.utc)
 
-        async with aiohttp.ClientSession(headers=self.HEADERS, timeout=self.timeout) as session:
-            async with session.get(url, params=params) as response:
-                if response.status != 200:
-                    logger.error(f"Reddit user posts error {response.status} for u/{username}")
-                    return []
-                data = await response.json()
-                posts = []
-                for child in data.get("data", {}).get("children", []):
-                    if child.get("kind") != "t3":
-                        continue
-                    try:
-                        parsed = self._parse_post(child["data"], f"u/{username}")
-                        if parsed:
-                            posts.append(parsed)
-                    except Exception as e:
-                        logger.error(f"Error parsing user post: {e}")
-                return posts
+            url = entry.get("link", "")
+            post_id = url.split("/")[-3] if "/comments/" in url else entry.get("id", url)
+
+            text = entry.get("summary", entry.get("description", ""))
+            text = re.sub(r"<[^>]+>", "", text).strip()[:500]
+
+            author = getattr(entry, "author", "unknown")
+
+            return RedditRSSPost(
+                id=post_id,
+                title=entry.get("title", ""),
+                text=text,
+                author=author,
+                subreddit=subreddit,
+                url=url,
+                score=0,          # RSS doesn't expose score reliably
+                num_comments=0,
+                created_at=published,
+                permalink=url,
+                flair=None,
+                upvote_ratio=0.0,
+            )
+        except Exception as e:
+            logger.error(f"Error parsing Reddit RSS entry: {e}")
+            return None
+
+    def _is_relevant(self, text: str) -> bool:
+        keywords = [
+            "ai", "llm", "gpt", "claude", "gemini", "llama", "openai", "anthropic",
+            "agent", "chatbot", "ml", "machine learning", "deep learning", "neural",
+            "transformer", "diffusion", "fine-tun", "rag", "embedding", "inference",
+            "build in public", "buildinpublic", "indie hacker", "side project",
+            "saas", "mrr", "startup", "ship", "launch", "vibe coding",
+        ]
+        tl = text.lower()
+        return any(kw in tl for kw in keywords)
+
+    async def fetch_combined_feed(self, subreddits: List[str], keywords: List[str] = None) -> List[RedditRSSPost]:
+        posts = await self.fetch_subreddit_feeds(subreddits)
+        if keywords:
+            posts = [
+                p for p in posts
+                if any(kw.lower() in (p.title + " " + p.text).lower() for kw in keywords)
+            ]
+        return posts

@@ -396,7 +396,10 @@ class DailyBriefingJob:
 
         filtered = {}
         for source, items in raw_content.items():
-            items = self.filter.filter_by_date(items, days=3 if source in ("podcasts", "blogs") else 1)
+            days = {
+                "podcasts": 3, "blogs": 3, "github": 7, "rss": 3
+            }.get(source, 1)
+            items = self.filter.filter_by_date(items, days=days)
             items = [i for i in items if is_relevant(i)]
             items = items[:LIMITS.get(source, 10)]
             filtered[source] = items
