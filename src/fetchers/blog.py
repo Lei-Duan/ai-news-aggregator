@@ -181,6 +181,10 @@ class BlogFetcher:
             return None
 
         published_at = self._extract_date(html, url)
+        if published_at is None:
+            logger.debug(f"Blog: skipping {url} — publication date could not be determined")
+            return None
+
         author = self._extract_author(html)
         content = self._extract_content(html)
 
@@ -203,30 +207,63 @@ class BlogFetcher:
             return re.sub(r'<[^>]+>', '', m.group(1)).split('|')[0].strip()
         return ""
 
-    def _extract_date(self, html: str, url: str) -> datetime:
-        # Try JSON-LD datePublished
-        m = re.search(r'"datePublished"\s*:\s*"([^"]+)"', html)
+    def _extract_date(self, html: str, url: str) -> Optional[datetime]:
+        """
+        Try multiple strategies to extract the real publication date.
+        Returns None if the date cannot be determined — callers must skip such articles
+        rather than fabricating a timestamp.
+        """
+        candidates = []
+
+        def _parse(s: str) -> Optional[datetime]:
+            try:
+                return datetime.fromisoformat(s.replace("Z", "+00:00"))
+            except Exception:
+                return None
+
+        # 1. JSON-LD / schema.org datePublished
+        for m in re.finditer(r'"datePublished"\s*:\s*"([^"]+)"', html):
+            d = _parse(m.group(1))
+            if d:
+                candidates.append(d)
+
+        # 2. meta article:published_time (Open Graph)
+        for m in re.finditer(r'(?:property|name)="article:published_time"\s+content="([^"]+)"', html):
+            d = _parse(m.group(1))
+            if d:
+                candidates.append(d)
+
+        # 3. __NEXT_DATA__ / JSON fields: publishedAt, published_at, date, createdAt
+        for key in (r'"publishedAt"', r'"published_at"', r'"date"', r'"createdAt"', r'"dateModified"'):
+            for m in re.finditer(key + r'\s*:\s*"([^"]+)"', html):
+                d = _parse(m.group(1))
+                if d:
+                    candidates.append(d)
+
+        # 4. <time datetime="..."> HTML element
+        for m in re.finditer(r'<time[^>]+datetime="([^"]+)"', html, re.IGNORECASE):
+            d = _parse(m.group(1))
+            if d:
+                candidates.append(d)
+
+        # 5. Date in URL path  e.g. /2025/12/article or /2025-12-01-article
+        m = re.search(r'/(\d{4})[/-](\d{2})(?:[/-](\d{2}))?', url)
         if m:
             try:
-                return datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
+                year, month = int(m.group(1)), int(m.group(2))
+                day = int(m.group(3)) if m.group(3) else 1
+                if 2020 <= year <= 2030 and 1 <= month <= 12 and 1 <= day <= 31:
+                    candidates.append(datetime(year, month, day, tzinfo=timezone.utc))
             except Exception:
                 pass
-        # Try meta og:published_time
-        m = re.search(r'property="article:published_time"\s+content="([^"]+)"', html)
-        if m:
-            try:
-                return datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
-            except Exception:
-                pass
-        # Try __NEXT_DATA__ publishedAt
-        m = re.search(r'"publishedAt"\s*:\s*"([^"]+)"', html)
-        if m:
-            try:
-                return datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
-            except Exception:
-                pass
-        # Fallback: assume recent
-        return datetime.now(tz=timezone.utc)
+
+        if not candidates:
+            return None   # ← unknown date: caller will skip this article
+
+        # Return the most recent plausible date (filter out future dates)
+        now = datetime.now(tz=timezone.utc)
+        valid = [d for d in candidates if d <= now]
+        return max(valid) if valid else None
 
     def _extract_author(self, html: str) -> str:
         m = re.search(r'"author"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"', html)
