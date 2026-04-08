@@ -139,3 +139,4 @@ config/local_config.py
 .idea/.env.api
 .env.simple
 .DS_Store
+state/seen_items.json
