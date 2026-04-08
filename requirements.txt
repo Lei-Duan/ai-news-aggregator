@@ -1,19 +1,8 @@
-# HTTP & async
 aiohttp>=3.8.0
 httpx>=0.25.0
-
-# API clients
 anthropic>=0.20.0
 notion-client>=2.2.0
-
-# Config & settings
 python-dotenv>=1.0.0
-pydantic>=2.0.0
-pydantic-settings>=2.0.0
 pyyaml>=6.0.0
-
-# Feed parsing
 feedparser>=6.0.0
-
-# Scheduling (local --mode schedule only)
 apscheduler>=3.10.0
