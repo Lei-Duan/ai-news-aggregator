@@ -48,8 +48,10 @@ class ContentFilter:
             item_type = item.get("type", "")
             eng = item.get("engagement", {})
 
-            # RSS/articles have no engagement data — always pass through
-            if item_type in ("rss",) or not eng:
+            # RSS and tweets always pass — RSS has no engagement data,
+            # tweets are pre-curated by account selection so engagement threshold
+            # should not apply (fresh tweets from followed accounts have 0 likes)
+            if item_type in ("rss", "tweet") or not eng:
                 filtered.append(item)
                 continue
 
@@ -65,9 +67,11 @@ class ContentFilter:
             elif "stars" in eng:
                 engagement = eng.get("stars", 0)
 
-            # Reddit metrics
+            # Reddit metrics — use comment count as quality signal
+            # (score/upvotes can be gamed; comments indicate real discussion)
             elif "score" in eng:
-                engagement = eng.get("score", 0)
+                engagement = eng.get("comments", 0)
+                min_engagement = 50  # override threshold for Reddit
 
             # Hacker News metrics
             elif "points" in eng:
@@ -323,9 +327,15 @@ class ContentFilter:
         # Step 6: Prioritize
         items = self.prioritize_content(items)
 
-        # Step 7: Apply quality score filter
-        items = [item for item in items
-                if item.get("quality_score", 0) >= config.get("min_quality_score", 0.6)]
+        # Step 7: Quality score filter intentionally removed.
+        # Each source has its own quality signal:
+        #   - tweet (account): curated account list
+        #   - tweet (trending): ≥5000 likes
+        #   - reddit: comments ≥ 50
+        #   - hackernews: ≥ 30 points (filtered at fetch time)
+        #   - github: stars this week (from trending page)
+        #   - rss / podcast / blog: pre-selected trusted sources
+        # Claude's quality_score has no clear grounding — don't use it as a hard gate.
 
         logger.info(f"Final filtered result: {len(items)} items")
         return items

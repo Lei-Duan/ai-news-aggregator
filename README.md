@@ -28,13 +28,13 @@ Runs entirely on GitHub Actions, triggered daily at 09:05 PST — **no server re
 
 | Source | Method | Filter Logic |
 |---|---|---|
-| **Twitter / X** | API v2 (Basic plan required) | 25 curated AI accounts + platform-wide tweets with ≥2000 likes |
-| **GitHub** | REST API | Sorted by star velocity (stars/day) to surface fast-rising new projects |
-| **Reddit** | RSS (no auth) | 14 high-signal communities: r/LocalLLaMA, r/MachineLearning, etc. |
-| **Hacker News** | Official Algolia API | AI-related posts, ≥30 points threshold |
-| **RSS Feeds** | feedparser | Official blogs: OpenAI, Anthropic, Google, HuggingFace |
-| **Tech Blogs** | Direct scraping | Latest posts from Anthropic + OpenAI websites |
-| **AI Podcasts** | RSS | 6 podcasts incl. Lex Fridman, Latent Space, No Priors — episodes within 72h |
+| **Twitter / X** | API v2 (Basic plan, $100/mo) | 25 curated AI/builder accounts (24h, no keyword filter) + platform-wide search ≥5000 likes across 4 AI keyword/hashtag queries |
+| **GitHub** | Scrape github.com/trending | Weekly trending page across 6 languages; ranked by stars gained this week; excludes big-org repos; AI keyword filter |
+| **Reddit** | RSS (no auth) | 14 subreddits incl. r/LocalLLaMA, r/MachineLearning, r/buildinpublic; comments ≥ 50 |
+| **Hacker News** | Algolia API | AI-related posts; ≥ 30 points at fetch time |
+| **RSS Feeds** | feedparser | 8 official AI blogs (OpenAI, Anthropic, Google, HuggingFace, Distill) + 8 indie-builder blogs; no engagement filter |
+| **Tech Blogs** | Direct scraping | Anthropic, OpenAI, Google Gemini, Google DeepMind; 72h window; real publication date extracted (undated posts flagged) |
+| **AI Podcasts** | RSS | Lex Fridman, TWIML, Cognitive Revolution, Latent Space, No Priors, FLI; episodes within 72h |
 
 Tracked Twitter accounts (25): @karpathy · @AndrewYNg · @ylecun · @swyx · @ggerganov · @fchollet · @goodside · @levelsio · @marc\_lou\_ · @AnthropicAI · @LangChainAI · @cursor\_ai and more
 
@@ -228,13 +228,13 @@ ai-news-aggregator/
 
 | 来源 | 抓取方式 | 筛选逻辑 |
 |---|---|---|
-| **Twitter / X** | API v2（需 Basic 订阅） | 25 个精选 AI 账号 + 全平台 ≥2000 likes 热推 |
-| **GitHub** | REST API | 按 star 增速（stars/day）排序，优先发现快速崛起新项目 |
-| **Reddit** | RSS（免认证） | r/LocalLLaMA、r/MachineLearning 等 14 个高质量社区 |
-| **Hacker News** | 官方 Algolia API | AI 相关，≥30 points 过滤 |
-| **RSS 订阅** | feedparser | OpenAI、Anthropic、Google、HuggingFace 等官方博客 |
-| **技术博客** | 直接爬取 | Anthropic + OpenAI 官网最新文章 |
-| **AI 播客** | RSS | Lex Fridman、Latent Space、No Priors 等 6 个，72h 内新集 |
+| **Twitter / X** | API v2（需 Basic 订阅，$100/月） | 25 个精选 AI/builder 账号（24h，不过关键词）+ 全平台 ≥5000 likes，4 组 AI 关键词/hashtag query |
+| **GitHub** | 爬取 github.com/trending | 按周 trending 页面，覆盖 6 种语言；按本周新增 star 数排序；排除大厂 org；AI 关键词过滤 |
+| **Reddit** | RSS（免认证） | r/LocalLLaMA、r/MachineLearning、r/buildinpublic 等 14 个社区；评论数 ≥ 50 |
+| **Hacker News** | 官方 Algolia API | AI 相关帖子；抓取时已过滤 ≥ 30 points |
+| **RSS 订阅** | feedparser | 8 个官方 AI 博客（OpenAI / Anthropic / Google / HuggingFace / Distill）+ 8 个 indie builder 博客；不过 engagement |
+| **技术博客** | 直接爬取 | Anthropic、OpenAI、Google Gemini、Google DeepMind；72h 内；提取真实发布日期（无法确定时标注） |
+| **AI 播客** | RSS | Lex Fridman、TWIML、Cognitive Revolution、Latent Space、No Priors、FLI；72h 内新集 |
 
 ---
 

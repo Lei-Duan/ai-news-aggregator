@@ -27,17 +27,26 @@ BLOG_USER_AGENT = (
 
 BLOG_SOURCES = {
     "Anthropic": {
-        "index_urls": [
-            "https://www.anthropic.com/research",
-            "https://www.anthropic.com/news",
-        ],
+        # Anthropic's site is client-side rendered — article pages have no date in HTML.
+        # Sitemap provides both URLs and accurate lastmod dates in one request.
+        "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+        "sitemap_path_prefix": "/news/",
         "base": "https://www.anthropic.com",
-        "link_pattern": r'href="(/(?:research|news)/[a-z0-9][a-z0-9\-]+)"',
     },
     "OpenAI": {
         "index_urls": ["https://openai.com/blog"],
         "base": "https://openai.com",
         "link_pattern": r'href="(/blog/[a-z0-9][a-z0-9\-]+)"',
+    },
+    "Google Gemini": {
+        "index_urls": ["https://blog.google/products/gemini/"],
+        "base": "https://blog.google",
+        "link_pattern": r'href="(/products/gemini/[a-z0-9][a-z0-9\-]+/?)"',
+    },
+    "Google DeepMind": {
+        "index_urls": ["https://deepmind.google/discover/blog/"],
+        "base": "https://deepmind.google",
+        "link_pattern": r'href="(/discover/blog/[a-z0-9][a-z0-9\-]+/?)"',
     },
 }
 
@@ -74,26 +83,77 @@ class BlogFetcher:
         return posts
 
     async def _fetch_source(self, session: aiohttp.ClientSession, source_name: str, cfg: dict) -> List[BlogPost]:
-        """Discover article URLs from index pages, then fetch each article."""
-        article_urls = set()
-        for index_url in cfg["index_urls"]:
-            urls = await self._discover_article_urls(session, index_url, cfg)
-            article_urls.update(urls)
-
-        posts = []
+        """Discover article URLs (via sitemap or index page), then fetch each article."""
         cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=self.max_age_hours)
+        posts = []
 
-        for url in list(article_urls)[:15]:   # cap at 15 articles per source
-            try:
-                post = await self._fetch_article(session, url, source_name)
-                if post and post.published_at >= cutoff:
-                    posts.append(post)
-                await asyncio.sleep(0.5)
-            except Exception as e:
-                logger.error(f"Error fetching article {url}: {e}")
+        if "sitemap_url" in cfg:
+            # Sitemap path: accurate dates from sitemap, no need to parse article HTML for date
+            url_date_map = await self._fetch_from_sitemap(session, cfg, cutoff)
+            for url, pub_date in list(url_date_map.items())[:15]:
+                try:
+                    post = await self._fetch_article(session, url, source_name)
+                    if post:
+                        post.published_at = pub_date
+                        post.date_unknown = False
+                        posts.append(post)
+                    await asyncio.sleep(0.5)
+                except Exception as e:
+                    logger.error(f"Error fetching article {url}: {e}")
+        else:
+            # Index page path: discover URLs then fetch articles
+            article_urls = set()
+            for index_url in cfg["index_urls"]:
+                urls = await self._discover_article_urls(session, index_url, cfg)
+                article_urls.update(urls)
+
+            for url in list(article_urls)[:15]:
+                try:
+                    post = await self._fetch_article(session, url, source_name)
+                    if post and post.published_at >= cutoff:
+                        posts.append(post)
+                    await asyncio.sleep(0.5)
+                except Exception as e:
+                    logger.error(f"Error fetching article {url}: {e}")
 
         posts.sort(key=lambda p: p.published_at, reverse=True)
         return posts[:5]   # keep 5 most recent
+
+    async def _fetch_from_sitemap(self, session: aiohttp.ClientSession, cfg: dict,
+                                   cutoff: datetime) -> dict:
+        """Fetch sitemap and return {url: lastmod_date} for recent articles, sorted newest first."""
+        try:
+            async with session.get(cfg["sitemap_url"]) as resp:
+                if resp.status != 200:
+                    logger.warning(f"Sitemap fetch failed: {resp.status} for {cfg['sitemap_url']}")
+                    return {}
+                xml = await resp.text()
+        except Exception as e:
+            logger.error(f"Sitemap fetch error: {e}")
+            return {}
+
+        prefix = cfg.get("sitemap_path_prefix", "")
+        entries = re.findall(
+            r'<loc>(https?://[^<]+)</loc>\s*<lastmod>([^<]+)</lastmod>', xml
+        )
+
+        url_dates = {}
+        for url, lastmod in entries:
+            from urllib.parse import urlparse
+            path = urlparse(url).path
+            if prefix and not path.startswith(prefix):
+                continue
+            try:
+                dt = datetime.fromisoformat(lastmod.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                if dt >= cutoff:
+                    url_dates[url] = dt
+            except Exception:
+                continue
+
+        # Sort newest first
+        return dict(sorted(url_dates.items(), key=lambda x: x[1], reverse=True))
 
     async def _discover_article_urls(self, session: aiohttp.ClientSession, index_url: str, cfg: dict) -> List[str]:
         """Extract article links from an index page."""

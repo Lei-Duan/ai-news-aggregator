@@ -26,8 +26,8 @@ INTER_REQUEST_DELAY = 0.2   # 200ms between per-user requests (polite)
 BATCH_SIZE = 100             # max usernames per /users/by request
 
 # Trending search: minimum engagement to count as "trending"
-TRENDING_MIN_LIKES = 2000
-TRENDING_MAX_RESULTS = 50   # per search query
+TRENDING_MIN_LIKES = 5000
+TRENDING_MAX_RESULTS = 20   # per search query (server-side filtered by min_faves)
 
 
 @dataclass
@@ -44,6 +44,7 @@ class Tweet:
     url: str
     entities: Dict = field(default_factory=dict)
     is_long: bool = False     # True when pulled from note_tweet
+    source_type: str = "account"  # "account" = curated list, "trending" = ≥2000 likes search
 
 
 class TwitterFetcher:
@@ -188,8 +189,8 @@ class TwitterFetcher:
             is_long = "note_tweet" in td
             text = td.get("note_tweet", {}).get("text") or td["text"]
 
-            if keywords and not self._matches_keywords(text, keywords):
-                continue
+            # No keyword filter here — account tweets are pre-curated and already
+            # paid for; keyword filtering happens later in pre_filter_content.
 
             created = datetime.fromisoformat(td["created_at"].replace("Z", "+00:00"))
 
@@ -229,18 +230,25 @@ class TwitterFetcher:
             return []
 
         # Note: min_faves: operator not supported on Basic tier — filter programmatically below
+        # min_faves:N filters server-side before results are returned,
+        # saving API quota vs fetching and filtering programmatically.
+        like_gate = f"min_faves:{min_likes}"
         queries = [
             # Viral AI model / tool releases
-            '(LLM OR "AI agent" OR "vibe coding" OR Claude OR "GPT-4o" OR Gemini OR Llama) '
-            'lang:en -is:retweet -is:reply',
+            f'(LLM OR "AI agent" OR "vibe coding" OR Claude OR "GPT-4o" OR Gemini OR Llama) '
+            f'lang:en -is:retweet -is:reply {like_gate}',
 
             # Indie builder wins — MRR milestones, launches, revenue
-            '("build in public" OR "indie hacker" OR "AI SaaS" OR MRR OR "just launched" OR "just shipped") '
-            'lang:en -is:retweet -is:reply',
+            f'("build in public" OR "indie hacker" OR "AI SaaS" OR MRR OR "just launched" OR "just shipped") '
+            f'lang:en -is:retweet -is:reply {like_gate}',
 
             # Breaking AI news & open source
-            '("new model" OR "open source" AI OR benchmark OR "state of the art") '
-            '(AI OR LLM OR ML) lang:en -is:retweet -is:reply',
+            f'("new model" OR "open source" AI OR benchmark OR "state of the art") '
+            f'(AI OR LLM OR ML) lang:en -is:retweet -is:reply {like_gate}',
+
+            # Hashtag-based recall
+            f'(#AI OR #LLM OR #GenAI OR #AIagent OR #BuildInPublic OR #agent OR #claude) '
+            f'lang:en -is:retweet -is:reply {like_gate}',
         ]
 
         cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=hours_back)
@@ -283,7 +291,7 @@ class TwitterFetcher:
     ) -> List[Tweet]:
         params = {
             "query": query,
-            "max_results": min(max_results, 100),
+            "max_results": min(max_results, 20),  # server-side filtered, fewer results expected
             "start_time": start_time,
             "sort_order": "relevancy",   # surfaces higher-engagement content vs pure recency
             "tweet.fields": "created_at,public_metrics,note_tweet,entities,author_id",
@@ -329,6 +337,7 @@ class TwitterFetcher:
                 url=f"https://x.com/{username}/status/{td['id']}",
                 entities=td.get("entities", {}),
                 is_long=is_long,
+                source_type="trending",
             ))
         return tweets
 

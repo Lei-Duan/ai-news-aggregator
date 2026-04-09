@@ -191,22 +191,8 @@ hackernews:
 
 # RSS feeds for AI blogs and build in public content
 rss_feeds:
-  # AI company blogs
+  # AI company blogs (verified working)
   - "https://openai.com/blog/rss.xml"
-  - "https://www.anthropic.com/news/rss.xml"
   - "https://blog.google/technology/ai/rss/"
-  - "https://research.google.com/blog/rss.xml"
-  - "https://ai.googleblog.com/feeds/posts/default"
-  - "https://blog.research.google/feeds/posts/default"
-  - "https://distill.pub/rss.xml"
   - "https://huggingface.co/blog/feed.xml"
-
-  # Build in public blogs
-  - "https://www.indiehackers.com/blog/rss"
-  - "https://levels.io/feed/"
-  - "https://arvidkahl.com/feed/"
-  - "https://simonhoiberg.com/rss"
-  - "https://buildinpublic.blog/rss"
-  - "https://blog.alexmaccaw.com/rss"
-  - "https://dannypostma.com/rss"
-  - "https://marc.dev/rss"
+  - "https://blog.research.google/feeds/posts/default"

@@ -220,6 +220,7 @@ class DailyBriefingJob:
         return [
             {
                 "type": "tweet",
+                "tweet_source": t.source_type,  # "account" or "trending"
                 "id": t.id,
                 "title": f"Tweet by @{t.author_username}",
                 "text": t.text,
@@ -258,7 +259,7 @@ class DailyBriefingJob:
                 "type": "github",
                 "id": repo.full_name,
                 "title": repo.full_name,
-                "text": f"{repo.description or repo.name} [⭐ {repo.stars} stars, {repo.star_velocity:.1f} stars/day]",
+                "text": f"{repo.description or repo.name} [⭐ {repo.stars} total, +{int(repo.star_velocity)} stars this week]",
                 "author": repo.owner,
                 "source": "GitHub",
                 "url": repo.url,
@@ -401,8 +402,10 @@ class DailyBriefingJob:
             ]).lower()
             if any(kw in text for kw in EXCLUDE):
                 return False
-            # Blogs and podcasts are pre-selected sources — always include
+            # Blogs, podcasts, and curated account tweets are pre-selected — always include
             if item.get("type") in ("blog", "podcast"):
+                return True
+            if item.get("type") == "tweet" and item.get("tweet_source") == "account":
                 return True
             return any(kw in text for kw in AI_KEYWORDS)
 

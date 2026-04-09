@@ -177,7 +177,7 @@ class NotionClient:
             for item in items:
                 title = item.get("title", "")
                 url   = item.get("url", "")
-                source = item.get("source", "")
+                source = self._source_and_author(item)
                 summary_zh = item.get("summary_zh", item.get("summary", ""))[:100]
 
                 title_cell = [{"type": "text", "text": {"content": title}}]
@@ -286,6 +286,34 @@ class NotionClient:
 
         return blocks
 
+    def _source_tag(self, item: Dict) -> str:
+        """Return a short [Platform] or [Platform · Author] label for display."""
+        t = item.get("type", "")
+        source = item.get("source", "")
+        author = item.get("author", "")
+
+        if t == "tweet":
+            return f"[Twitter · {source}]" if source else "[Twitter]"
+        if t == "github":
+            return f"[GitHub · {source}]" if source else "[GitHub]"
+        if t == "reddit":
+            return f"[Reddit · {source}]" if source else "[Reddit]"
+        if t == "hackernews":
+            return "[HN]"
+        if t in ("blog", "rss"):
+            return f"[{source}]" if source else "[Blog]"
+        if t == "podcast":
+            return f"[Podcast · {source}]" if source else "[Podcast]"
+        return f"[{source}]" if source else ""
+
+    def _source_and_author(self, item: Dict) -> str:
+        """Return 'Platform / Author' string for the summary table source column."""
+        tag = self._source_tag(item).strip("[]")
+        author = item.get("author", "")
+        if author and author not in tag:
+            return f"{tag} / {author}"
+        return tag
+
     def _item_meta_line(self, item: Dict) -> str:
         parts = []
         if item.get("source"): parts.append(item["source"])
@@ -340,7 +368,8 @@ class NotionClient:
 
     def _create_item_blocks_zh(self, item: Dict) -> List[Dict]:
         blocks = []
-        title = item.get("title", "Untitled")
+        tag   = self._source_tag(item)
+        title = f"{tag} {item.get('title', 'Untitled')}" if tag else item.get("title", "Untitled")
         url   = item.get("url", "")
         blocks.append(self._h3(title, url))
 
@@ -360,7 +389,8 @@ class NotionClient:
 
     def _create_item_blocks_en(self, item: Dict) -> List[Dict]:
         blocks = []
-        title = item.get("title", "Untitled")
+        tag   = self._source_tag(item)
+        title = f"{tag} {item.get('title', 'Untitled')}" if tag else item.get("title", "Untitled")
         url   = item.get("url", "")
         blocks.append(self._h3(title, url))
 
