@@ -48,10 +48,10 @@ class ContentFilter:
             item_type = item.get("type", "")
             eng = item.get("engagement", {})
 
-            # RSS and tweets always pass — RSS has no engagement data,
-            # tweets are pre-curated by account selection so engagement threshold
-            # should not apply (fresh tweets from followed accounts have 0 likes)
-            if item_type in ("rss", "tweet") or not eng:
+            # RSS, tweets, and reddit (via RSS feed, no engagement data) always pass.
+            # Tweets are pre-curated by account selection.
+            # Reddit RSS doesn't expose score/comments, so we skip engagement filtering.
+            if item_type in ("rss", "tweet", "reddit") or not eng:
                 filtered.append(item)
                 continue
 

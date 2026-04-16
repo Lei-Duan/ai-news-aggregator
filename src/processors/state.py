@@ -63,17 +63,29 @@ class SeenItemsState:
                 self.mark_seen(str(item_id), source)
 
     def filter_unseen(self, items: list, source: str, id_field: str = "id") -> list:
-        """Return only items not yet seen. Does NOT mark them — call mark_seen_batch after processing."""
+        """Return only items not yet seen (or seen today — same-day re-runs are allowed).
+
+        Items seen on a *previous* day are filtered out.
+        Items seen *today* are kept so that a second run on the same day still
+        produces a full briefing (e.g. local test after GitHub Actions already ran).
+        """
         if not self._loaded:
             self.load()
+        today = datetime.now(tz=timezone.utc).date()
         unseen = []
         for item in items:
             item_id = str(item.get(id_field) or item.get("url") or item.get("title", ""))
-            if not self.is_seen(item_id, source):
+            seen_ts = self._state.get(source, {}).get(item_id)
+            if seen_ts is None:
                 unseen.append(item)
+            else:
+                seen_date = datetime.fromisoformat(seen_ts).date()
+                if seen_date >= today:
+                    # Seen today — allow re-processing
+                    unseen.append(item)
         skipped = len(items) - len(unseen)
         if skipped:
-            logger.info(f"Dedup [{source}]: skipped {skipped} already-seen items, kept {len(unseen)}")
+            logger.info(f"Dedup [{source}]: skipped {skipped} already-seen items (prev days), kept {len(unseen)}")
         return unseen
 
     def cleanup_expired(self):

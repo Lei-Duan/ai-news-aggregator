@@ -1,19 +1,25 @@
 """
-Reddit fetcher via JSON API (no auth required).
-Uses /r/{subreddit}/hot.json which includes real score and comment counts.
+Reddit fetcher via RSS feeds (no auth required).
+Uses /r/{subreddit}/hot.rss — RSS endpoints are far less aggressively blocked
+than the JSON API.
 """
 
 import asyncio
 import aiohttp
+import feedparser
 import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
-JSON_USER_AGENT = "ai-news-aggregator/1.0 (by /u/ai-aggregator-bot)"
+RSS_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
 
 
 @dataclass
@@ -42,71 +48,100 @@ class RedditRSSFetcher:
         all_posts: List[RedditRSSPost] = []
 
         async with aiohttp.ClientSession(
-            headers={"User-Agent": JSON_USER_AGENT},
+            headers={"User-Agent": RSS_USER_AGENT},
             timeout=self.timeout,
         ) as session:
             for subreddit in subreddits:
                 try:
-                    posts = await self._fetch_json(session, subreddit)
+                    posts = await self._fetch_rss(session, subreddit)
                     all_posts.extend(posts)
                     logger.info(f"Reddit r/{subreddit}: {len(posts)} posts")
                     await asyncio.sleep(1)
                 except Exception as e:
                     logger.error(f"Error fetching r/{subreddit}: {e}")
 
-        all_posts.sort(key=lambda p: p.num_comments, reverse=True)
+        all_posts.sort(key=lambda p: p.created_at, reverse=True)
         return all_posts[:120]
 
-    async def _fetch_json(self, session: aiohttp.ClientSession, subreddit: str) -> List[RedditRSSPost]:
-        url = f"{self.BASE_URL}/r/{subreddit}/hot.json?limit=25"
+    async def _fetch_rss(self, session: aiohttp.ClientSession, subreddit: str) -> List[RedditRSSPost]:
+        url = f"{self.BASE_URL}/r/{subreddit}/hot.rss?limit=25"
         async with session.get(url) as resp:
             if resp.status == 429:
                 logger.warning(f"Reddit rate limit on r/{subreddit}, skipping")
                 return []
             if resp.status != 200:
-                logger.error(f"Reddit JSON {resp.status}: r/{subreddit}")
+                logger.error(f"Reddit RSS {resp.status}: r/{subreddit}")
                 return []
-            data = await resp.json()
+            content = await resp.text()
+
+        loop = asyncio.get_event_loop()
+        feed = await loop.run_in_executor(None, feedparser.parse, content)
 
         posts = []
-        for child in data.get("data", {}).get("children", []):
-            post = self._parse_post(child.get("data", {}), subreddit)
+        for entry in feed.entries:
+            post = self._parse_entry(entry, subreddit)
             if post and self._is_relevant(post.title + " " + post.text):
                 posts.append(post)
         return posts
 
-    def _parse_post(self, d: dict, subreddit: str) -> Optional[RedditRSSPost]:
+    def _parse_entry(self, entry, subreddit: str) -> Optional[RedditRSSPost]:
         try:
-            # Skip stickied mod posts
-            if d.get("stickied") or d.get("distinguished") == "moderator":
-                return None
+            # Parse published date — prefer published_parsed (already parsed by feedparser)
+            published_at = datetime.now(tz=timezone.utc)
+            if hasattr(entry, "published_parsed") and entry.published_parsed:
+                published_at = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+            elif hasattr(entry, "published") and entry.published:
+                try:
+                    published_at = parsedate_to_datetime(entry.published)
+                    if published_at.tzinfo is None:
+                        published_at = published_at.replace(tzinfo=timezone.utc)
+                except Exception:
+                    pass
 
-            created_utc = d.get("created_utc", 0)
-            created_at = datetime.fromtimestamp(created_utc, tz=timezone.utc)
-
-            # Self-text or empty for link posts
-            text = d.get("selftext", "") or ""
+            # Extract text from the HTML content in RSS description
+            raw_content = ""
+            if hasattr(entry, "content") and entry.content:
+                raw_content = entry.content[0].get("value", "")
+            elif hasattr(entry, "summary"):
+                raw_content = entry.summary or ""
+            text = re.sub(r"<[^>]+>", " ", raw_content)
             text = re.sub(r"\s+", " ", text).strip()[:500]
 
-            permalink = "https://www.reddit.com" + d.get("permalink", "")
-            url = d.get("url", permalink)
+            permalink = entry.get("link", "")
+            # The link in Reddit RSS points to the post comments page
+            url = permalink
+
+            # Try to extract the actual linked URL from content
+            external_url_match = re.search(r'href="(https?://[^"]+)"', raw_content)
+            if external_url_match:
+                candidate = external_url_match.group(1)
+                if "reddit.com" not in candidate:
+                    url = candidate
+
+            # Build a stable ID from the permalink
+            post_id = re.search(r"/comments/([a-z0-9]+)/", permalink)
+            post_id = post_id.group(1) if post_id else permalink
+
+            author = ""
+            if hasattr(entry, "author"):
+                author = entry.author.replace("/u/", "").replace("u/", "")
 
             return RedditRSSPost(
-                id=d.get("id", ""),
-                title=d.get("title", ""),
+                id=post_id,
+                title=entry.get("title", ""),
                 text=text,
-                author=d.get("author", "unknown"),
+                author=author,
                 subreddit=subreddit,
                 url=url,
-                score=d.get("score", 0),
-                num_comments=d.get("num_comments", 0),
-                created_at=created_at,
+                score=0,          # not available in RSS
+                num_comments=0,   # not available in RSS
+                created_at=published_at,
                 permalink=permalink,
-                flair=d.get("link_flair_text"),
-                upvote_ratio=d.get("upvote_ratio", 0.0),
+                flair=None,
+                upvote_ratio=0.0,
             )
         except Exception as e:
-            logger.error(f"Error parsing Reddit post: {e}")
+            logger.error(f"Error parsing Reddit RSS entry: {e}")
             return None
 
     def _is_relevant(self, text: str) -> bool:

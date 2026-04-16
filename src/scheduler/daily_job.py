@@ -351,13 +351,13 @@ class DailyBriefingJob:
                 "type": "podcast",
                 "id": ep.guid,
                 "title": ep.title,
-                "text": ep.transcript or ep.description,
+                "text": ep.description,
                 "author": ep.podcast_name,
                 "source": ep.podcast_name,
                 "url": ep.episode_url,
                 "published_at": ep.published_at,
                 "engagement": {},
-                "has_transcript": ep.transcript is not None,
+                "has_transcript": False,
                 "duration_sec": ep.duration_sec,
             }
             for ep in episodes

@@ -119,9 +119,10 @@ class NotionClient:
 
     @staticmethod
     def _h3(text: str, url: str = "") -> Dict:
-        rich = {"type": "text", "text": {"content": text}, "annotations": {"bold": True}}
+        text_obj = {"content": text}
         if url:
-            rich["href"] = url
+            text_obj["link"] = {"url": url}
+        rich = {"type": "text", "text": text_obj, "annotations": {"bold": True}}
         return {"object": "block", "type": "heading_3",
                 "heading_3": {"rich_text": [rich]}}
 
@@ -180,9 +181,7 @@ class NotionClient:
                 source = self._source_and_author(item)
                 summary_zh = item.get("summary_zh", item.get("summary", ""))[:100]
 
-                title_cell = [{"type": "text", "text": {"content": title}}]
-                if url:
-                    title_cell[0]["href"] = url
+                title_cell = [{"type": "text", "text": {"content": title, "link": {"url": url}} if url else {"content": title}}]
 
                 rows.append({
                     "object": "block", "type": "table_row",
