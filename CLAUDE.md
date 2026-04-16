@@ -56,10 +56,15 @@ src/scheduler/daily_job.py  # 主流程编排
 
 ## 已知问题 / 注意事项
 - Twitter API 需要 Basic 订阅（$100/月）或 pay-per-use；Free tier 返回 402
-- Twitter trending search 的 `min_faves:` operator 需要 Basic 以上权限，pay-per-use 待验证
+- Twitter trending search 的 `min_faves:` / search operator 需要 Basic 以上权限，目前程序内过滤 ≥2000 likes 替代
 - Haiku 偶发返回带 markdown 代码块的 JSON，batch 解析失败时该批次丢弃（低概率）
-- Podcast fetcher 有 `transcript` 属性缺失的 bug，待修（无新集时不影响运行）
 - Anthropic blog 用 sitemap 获取日期；OpenAI/Gemini/DeepMind 用 HTML 解析，可能因页面结构变化失效
+- Reddit JSON API (`/hot.json`) 对所有非浏览器 IP 返回 403，已切换为 RSS (`/hot.rss`)；RSS 无 score/comments 数据
+
+## 去重机制说明
+- 跨日去重：已处理的 item ID 记录在 `state/seen_items.json`，7 天过期
+- **同日重跑不去重**：当天 seen 的条目视为 unseen，允许同一天多次运行（如 GitHub Actions 跑完后本地再测试）
+- GitHub Actions 每次运行后自动 commit state 文件回 repo
 
 ## 依赖
 ```
