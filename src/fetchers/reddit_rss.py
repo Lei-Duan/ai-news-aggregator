@@ -107,16 +107,9 @@ class RedditRSSFetcher:
             text = re.sub(r"<[^>]+>", " ", raw_content)
             text = re.sub(r"\s+", " ", text).strip()[:500]
 
+            # Always link to the Reddit discussion thread, not the external URL
             permalink = entry.get("link", "")
-            # The link in Reddit RSS points to the post comments page
             url = permalink
-
-            # Try to extract the actual linked URL from content
-            external_url_match = re.search(r'href="(https?://[^"]+)"', raw_content)
-            if external_url_match:
-                candidate = external_url_match.group(1)
-                if "reddit.com" not in candidate:
-                    url = candidate
 
             # Build a stable ID from the permalink
             post_id = re.search(r"/comments/([a-z0-9]+)/", permalink)
