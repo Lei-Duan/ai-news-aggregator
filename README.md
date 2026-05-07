@@ -28,11 +28,11 @@ Runs entirely on GitHub Actions, triggered daily at 09:05 PST — **no server re
 
 | Source | Method | Filter Logic |
 |---|---|---|
-| **Twitter / X** | API v2 (Basic plan, $100/mo) | 25 curated AI/builder accounts (24h, no keyword filter) + platform-wide search ≥5000 likes across 4 AI keyword/hashtag queries |
+| **Twitter / X** | API v2 search with `from:u1 OR from:u2 …` | 24 curated AI/builder accounts pulled in **1 API call/day** via search-from query; user IDs cached on disk (7-day TTL) so `/users/by` is also skipped on warm runs |
 | **GitHub** | Scrape github.com/trending | Weekly trending page across 6 languages; ranked by stars gained this week; excludes big-org repos; AI keyword filter |
 | **Reddit** | RSS (no auth) | 14 subreddits incl. r/LocalLLaMA, r/MachineLearning, r/buildinpublic; comments ≥ 50 |
 | **Hacker News** | Algolia API | AI-related posts; ≥ 30 points at fetch time |
-| **RSS Feeds** | feedparser | 8 official AI blogs (OpenAI, Anthropic, Google, HuggingFace, Distill) + 8 indie-builder blogs; no engagement filter |
+| **RSS Feeds** | feedparser | Official AI blogs (OpenAI, Google AI, HuggingFace, Google Research) + **SemiAnalysis** for AI-infrastructure / compute economics; no engagement filter |
 | **Tech Blogs** | Direct scraping | Anthropic, OpenAI, Google Gemini, Google DeepMind; 72h window; real publication date extracted (undated posts flagged) |
 | **AI Podcasts** | RSS | Lex Fridman, TWIML, Cognitive Revolution, Latent Space, No Priors, FLI; episodes within 72h |
 
@@ -51,6 +51,8 @@ Tracked Twitter accounts (25): @karpathy · @AndrewYNg · @ylecun · @swyx · @g
 | **Truncation-safe batching** | Auto-splits by type (tweet ≤5/call, article ≤6/call) and merges results to prevent JSON truncation |
 | **Star velocity ranking** | GitHub sorts by stars/day rather than total stars, surfacing emerging projects early |
 | **Per-source fault isolation** | Each data source has its own try/except — one failure doesn't block the others |
+| **Cost-optimized Twitter fetch** | Single `from:u1 OR u2 …` search call replaces N timeline calls (~96% fewer X API requests, ~$0.27/day → ~$0.01/day); negative cache for unresolvable handles |
+| **AI Infrastructure category** | Datacenter buildouts, GPU/chip launches, hyperscaler capex, compute & energy stories surfaced as 🏗 **AI 基建** (HN/Reddit/Twitter keyword recall + SemiAnalysis RSS) |
 
 ---
 
@@ -228,11 +230,11 @@ ai-news-aggregator/
 
 | 来源 | 抓取方式 | 筛选逻辑 |
 |---|---|---|
-| **Twitter / X** | API v2（需 Basic 订阅，$100/月） | 25 个精选 AI/builder 账号（24h，不过关键词）+ 全平台 ≥5000 likes，4 组 AI 关键词/hashtag query |
+| **Twitter / X** | API v2 search 用 `from:u1 OR from:u2 …` | 24 个精选 AI/builder 账号通过单次 search-from 查询拉取（**1 API 调用/天**）；user ID 本地缓存 7 天，warm run 完全跳过 `/users/by` |
 | **GitHub** | 爬取 github.com/trending | 按周 trending 页面，覆盖 6 种语言；按本周新增 star 数排序；排除大厂 org；AI 关键词过滤 |
 | **Reddit** | RSS（免认证） | r/LocalLLaMA、r/MachineLearning、r/buildinpublic 等 14 个社区；评论数 ≥ 50 |
 | **Hacker News** | 官方 Algolia API | AI 相关帖子；抓取时已过滤 ≥ 30 points |
-| **RSS 订阅** | feedparser | 8 个官方 AI 博客（OpenAI / Anthropic / Google / HuggingFace / Distill）+ 8 个 indie builder 博客；不过 engagement |
+| **RSS 订阅** | feedparser | 官方 AI 博客（OpenAI / Google AI / HuggingFace / Google Research）+ **SemiAnalysis**（AI 基建 / 算力经济）；不过 engagement |
 | **技术博客** | 直接爬取 | Anthropic、OpenAI、Google Gemini、Google DeepMind；72h 内；提取真实发布日期（无法确定时标注） |
 | **AI 播客** | RSS | Lex Fridman、TWIML、Cognitive Revolution、Latent Space、No Priors、FLI；72h 内新集 |
 
@@ -249,6 +251,8 @@ ai-news-aggregator/
 | **防截断分批** | 按类型自动分批（tweet ≤5/次，article ≤6/次），合并结果 |
 | **星速排序** | GitHub 按 stars/day 而非总 stars 排序，优先发现快速崛起的新项目 |
 | **容错隔离** | 每个数据源独立 try/except，单个来源失败不影响其他来源 |
+| **Twitter 成本优化** | 单次 `from:u1 OR u2 …` search 调用替代 N 次 timeline 调用（X API 请求量 -96%，~$0.27/天 → ~$0.01/天）；无效 handle 自动 tombstone |
+| **AI 基建分类** | 数据中心建设、GPU/芯片发布、Hyperscaler 资本开支、算力 & 能源等内容被识别为 🏗 **AI 基建**（HN/Reddit/Twitter 关键词召回 + SemiAnalysis RSS） |
 
 ---
 
