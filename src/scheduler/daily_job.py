@@ -190,32 +190,20 @@ class DailyBriefingJob:
             logger.info("Twitter: no Bearer Token, skipping")
             return []
 
-        # 1) Followed builder accounts (batch lookup)
+        # Curated builder accounts (1 search-from call covers all 24+ accounts).
+        # NOTE: trending search disabled — `min_faves:` operator requires Pro
+        # tier, and without it /tweets/search/recent returns mostly low-likes
+        # results (top match ~150 likes). Re-enable via search_trending() if
+        # the bearer token is upgraded to Pro.
         account_tweets = await self.twitter_fetcher.fetch_tweets_from_accounts(
             accounts=self.sources["twitter"]["ai_accounts"],
             keywords=self.sources["twitter"]["keywords"],
             hours_back=24,
         )
-        logger.info(f"Twitter accounts: {len(account_tweets)} tweets")
-
-        # 2) Trending AI search — high-engagement tweets beyond followed accounts
-        trending_tweets = await self.twitter_fetcher.search_trending(
-            min_likes=2000,
-            hours_back=24,
-        )
-        logger.info(f"Twitter trending: {len(trending_tweets)} tweets")
-
-        # Merge and deduplicate by tweet ID
-        seen_ids = set()
-        merged = []
-        for t in account_tweets + trending_tweets:
-            if t.id not in seen_ids:
-                seen_ids.add(t.id)
-                merged.append(t)
 
         # Sort by likes descending
-        merged.sort(key=lambda t: t.like_count, reverse=True)
-        logger.info(f"Twitter total after merge: {len(merged)} tweets")
+        merged = sorted(account_tweets, key=lambda t: t.like_count, reverse=True)
+        logger.info(f"Twitter total: {len(merged)} tweets (accounts only)")
 
         return [
             {

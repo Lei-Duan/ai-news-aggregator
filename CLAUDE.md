@@ -26,8 +26,8 @@ src/scheduler/daily_job.py  # 主流程编排
 
 | 渠道 | 获取方式 | 质量信号 |
 |---|---|---|
-| Twitter 精选账号 | API v2 timeline | 人工选账号，不过 filter |
-| Twitter 热搜 | API v2 search，query 内含 `min_faves:5000` | ≥5000 likes 服务端过滤 |
+| Twitter 精选账号 | API v2 search 用 `from:u1 OR from:u2 …`，单次调用拉所有人 | 人工选账号，不过 filter；user ID 缓存 7 天 |
+| Twitter 热搜 | **已禁用**（`min_faves:` 需 Pro tier，Basic 拿不到 viral） | n/a |
 | GitHub | 爬 github.com/trending?since=weekly | 本周真实新增 stars |
 | Reddit | `/r/sub/hot.json`，无需 auth | comments ≥ 50 |
 | Hacker News | Algolia API | ≥ 30 points（fetch 时过滤）|
@@ -56,7 +56,8 @@ src/scheduler/daily_job.py  # 主流程编排
 
 ## 已知问题 / 注意事项
 - Twitter API 需要 Basic 订阅（$100/月）或 pay-per-use；Free tier 返回 402
-- Twitter trending search 的 `min_faves:` / search operator 需要 Basic 以上权限，目前程序内过滤 ≥2000 likes 替代
+- Twitter 优化：用 `(from:u1 OR from:u2 …)` 搜索把 25 次 timeline 调用压缩到 1 次 search 调用；user ID 缓存在 `state/twitter_user_ids.json`（7 天 TTL），命中即跳过 `/users/by`。日均 API 调用 ~26 → ~1（成本 ~$0.27/天 → ~$0.01/天）
+- Twitter `search_trending` 函数仍保留，但日常流程不调用 — `min_faves:` 操作符需要 Pro tier，否则返回的全是低赞结果。升级 tier 后可在 `daily_job.fetch_twitter_content` 里重新启用
 - Haiku 偶发返回带 markdown 代码块的 JSON，batch 解析失败时该批次丢弃（低概率）
 - Anthropic blog 用 sitemap 获取日期；OpenAI/Gemini/DeepMind 用 HTML 解析，可能因页面结构变化失效
 - Reddit JSON API (`/hot.json`) 对所有非浏览器 IP 返回 403，已切换为 RSS (`/hot.rss`)；RSS 无 score/comments 数据
