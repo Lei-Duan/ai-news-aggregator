@@ -84,6 +84,8 @@ class NotionClient:
         "technical-tutorial": "🛠 技术教程",
         "industry-analysis":  "📊 行业分析",
         "policy-update":      "📋 政策动态",
+        # Cross-source
+        "ai-infrastructure":  "🏗 AI 基建",
         # Special
         "podcast":            "🎙 播客",
         "blog":               "📝 官方博客",
@@ -99,6 +101,7 @@ class NotionClient:
         "Technical Tutorials": {"emoji": "🛠️", "zh": "技术教程"},
         "Product Launches":    {"emoji": "🆕", "zh": "产品发布"},
         "Open Source":         {"emoji": "🔓", "zh": "开源项目"},
+        "AI Infrastructure":   {"emoji": "🏗", "zh": "AI 基建"},
         "Other":               {"emoji": "📰", "zh": "其他"},
     }
 
