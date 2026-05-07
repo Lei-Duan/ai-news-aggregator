@@ -59,7 +59,7 @@ class ContentSummarizer:
             - summary: string (max 50 words, English)
             - summary_zh: string (max 80 Chinese characters, Chinese translation of summary)
             - key_points: array of strings (3-5 items, English)
-            - category: string (choose from: agent-project, model-release, research-paper, industry-news, tutorial, other)
+            - category: string (choose from: agent-project, model-release, research-paper, industry-news, ai-infrastructure, tutorial, other). Use ai-infrastructure for datacenter buildouts, GPU/TPU/chip news, hyperscaler capex, AI compute & energy stories.
             - quality_score: number (0-1)
             - relevance_score: number (0-1)
             - entities: array of strings (key companies/models/tech)
@@ -99,7 +99,7 @@ class ContentSummarizer:
             - summary: string (max 150 words, English)
             - summary_zh: string (max 150 Chinese characters, Chinese translation of summary)
             - key_points: array of strings (3-7 items, English)
-            - category: string (choose from: research-breakthrough, product-launch, technical-tutorial, industry-analysis, policy-update, other)
+            - category: string (choose from: research-breakthrough, product-launch, technical-tutorial, industry-analysis, ai-infrastructure, policy-update, other). Use ai-infrastructure for datacenter buildouts, GPU/TPU/chip news, hyperscaler capex, AI compute & energy stories.
             - quality_score: number (0-1)
             - relevance_score: number (0-1)
             - entities: array of strings (key companies/people/tech)

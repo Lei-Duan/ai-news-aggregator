@@ -58,6 +58,20 @@ twitter:
     - "ship"
     - "launch"
     - "solo founder"
+    # AI infrastructure — datacenter, compute, chips, energy
+    - "datacenter"
+    - "data center"
+    - "gpu cluster"
+    - "compute cluster"
+    - "hyperscaler"
+    - "stargate"
+    - "blackwell"
+    - "h100"
+    - "b200"
+    - "tsmc"
+    - "gigawatt"
+    - "ai infrastructure"
+    - "coreweave"
 
 # GitHub repositories and topics - AI tools by indie developers
 # STRICTLY LIMITED to reduce API costs - max 3-5 topics only
@@ -156,6 +170,29 @@ reddit:
     - "nextjs"
     - "vercel"
 
+    # AI infrastructure — datacenter, compute, chips, energy
+    - "datacenter"
+    - "data center"
+    - "gpu cluster"
+    - "compute cluster"
+    - "training cluster"
+    - "hyperscaler"
+    - "stargate"
+    - "blackwell"
+    - "hopper"
+    - "h100"
+    - "h200"
+    - "b200"
+    - "gb200"
+    - "tsmc"
+    - "foundry"
+    - "gigawatt"
+    - "power grid"
+    - "nuclear power"
+    - "ai infrastructure"
+    - "ai infra"
+    - "coreweave"
+
 # Podcast RSS feeds — fetched via PodcastFetcher, optionally transcribed via pod2txt
 # Episodes from the last 72 hours are included. Full transcription requires POD2TXT_API_KEY.
 podcasts:
@@ -185,6 +222,17 @@ hackernews:
     - "show hn"
     - "SaaS"
     - "startup"
+    # AI infrastructure
+    - "datacenter"
+    - "data center"
+    - "gpu cluster"
+    - "hyperscaler"
+    - "stargate"
+    - "blackwell"
+    - "h100"
+    - "tsmc"
+    - "ai infrastructure"
+    - "coreweave"
 
   # Minimum points threshold
   min_points: 30
@@ -196,3 +244,5 @@ rss_feeds:
   - "https://blog.google/technology/ai/rss/"
   - "https://huggingface.co/blog/feed.xml"
   - "https://blog.research.google/feeds/posts/default"
+  # AI infrastructure & compute economics
+  - "https://www.semianalysis.com/feed"

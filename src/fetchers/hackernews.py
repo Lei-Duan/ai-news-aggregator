@@ -96,7 +96,14 @@ class HackerNewsFetcher:
             "fine-tuning", "prompt engineering", "token", "embedding", "latent",
             "diffusion", "gan", "vae", "bert", "t5", "palm", "claude", "chatgpt",
             "agent", "autonomous", "rlhf", "sft", "pre-training", "foundation model",
-            "ai", "ml", "openai", "anthropic", "google ai", "meta ai", "deepmind"
+            "ai", "ml", "openai", "anthropic", "google ai", "meta ai", "deepmind",
+            # AI infrastructure — datacenter, compute, chips, energy
+            "datacenter", "data center", "gpu cluster", "compute cluster",
+            "training cluster", "hyperscaler", "stargate",
+            "blackwell", "hopper", "h100", "h200", "b200", "gb200",
+            "tsmc", "foundry", "wafer",
+            "gigawatt", "power grid", "nuclear power",
+            "ai infrastructure", "ai infra", "coreweave",
         ]
 
         title_lower = title.lower()

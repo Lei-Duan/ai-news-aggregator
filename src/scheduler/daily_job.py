@@ -392,6 +392,12 @@ class DailyBriefingJob:
             "openai", "anthropic", "agent", "chatbot", "embedding",
             "fine-tun", "rag", "inference", "model", "diffusion",
             "build in public", "indie hacker", "saas", "startup",
+            # AI infrastructure
+            "datacenter", "data center", "gpu cluster", "compute cluster",
+            "hyperscaler", "stargate", "blackwell", "hopper",
+            "h100", "h200", "b200", "gb200", "tsmc", "foundry",
+            "gigawatt", "power grid", "nuclear power",
+            "ai infrastructure", "ai infra", "coreweave",
         ]
         EXCLUDE = ["crypto", "nft", "blockchain", "bitcoin", "ethereum"]
 
@@ -515,6 +521,7 @@ class DailyBriefingJob:
             "technical-tutorial":"Technical Tutorials",
             "product-launch":    "Product Launches",
             "open-source":       "Open Source",
+            "ai-infrastructure": "AI Infrastructure",
             "podcast":           "Podcasts",
             "blog":              "Tech Blogs",
             "other":             "Other",
