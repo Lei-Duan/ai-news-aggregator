@@ -2,15 +2,36 @@ import asyncio
 from datetime import datetime
 from typing import List, Dict, Optional
 from notion_client import AsyncClient
-from notion_client.errors import APIResponseError
+from notion_client.errors import APIResponseError, RequestTimeoutError
 import logging
 
 logger = logging.getLogger(__name__)
 
 class NotionClient:
     def __init__(self, token: str, database_id: str):
-        self.client = AsyncClient(auth=token)
+        # 90s timeout (default is 60s). The blocks.children.append endpoint can be
+        # slow when a chunk has 100 blocks with rich content.
+        self.client = AsyncClient(auth=token, options={"timeout_ms": 90_000})
         self.database_id = database_id
+
+    async def _retry_timeout(self, coro_factory, *, attempts: int = 4, op: str = "request"):
+        """Call coro_factory() with retries on RequestTimeoutError.
+
+        notion-client retries 429/5xx internally but does NOT retry connection-level
+        timeouts (httpx.ReadTimeout → RequestTimeoutError). Without this wrapper, a
+        single slow append call leaves the daily-briefing page half-built and crashes
+        the job.
+        """
+        last_err = None
+        for i in range(attempts):
+            try:
+                return await coro_factory()
+            except RequestTimeoutError as e:
+                last_err = e
+                delay = 2 ** i  # 1s, 2s, 4s, 8s
+                logger.warning(f"Notion {op} timed out (attempt {i+1}/{attempts}); retrying in {delay}s")
+                await asyncio.sleep(delay)
+        raise last_err
 
     async def create_daily_briefing(self, date: datetime, sections: Dict[str, List[Dict]], fetch_stats: dict = None) -> str:
         """Create a daily briefing page in Notion.
@@ -43,7 +64,10 @@ class NotionClient:
                 },
                 "children": pre_table[:100],
             }
-            response = await self.client.pages.create(**page_data)
+            response = await self._retry_timeout(
+                lambda: self.client.pages.create(**page_data),
+                op="pages.create",
+            )
             page_id = response["id"]
 
             # Overflow pre-table blocks
@@ -450,9 +474,12 @@ class NotionClient:
     async def append_to_page(self, page_id: str, content_blocks: List[Dict]) -> bool:
         """Append content blocks to an existing page"""
         try:
-            await self.client.blocks.children.append(
-                block_id=page_id,
-                children=content_blocks
+            await self._retry_timeout(
+                lambda: self.client.blocks.children.append(
+                    block_id=page_id,
+                    children=content_blocks,
+                ),
+                op="blocks.children.append",
             )
             logger.info(f"Appended content to page: {page_id}")
             return True
@@ -460,6 +487,11 @@ class NotionClient:
         except APIResponseError as e:
             logger.error(f"Error appending to page: {e}")
             return False
+        except RequestTimeoutError as e:
+            # Re-raise: daily_job needs to know the page is incomplete rather
+            # than silently returning False and writing a half-built briefing.
+            logger.error(f"Timeout appending to page after retries: {e}")
+            raise
 
     async def create_database_if_not_exists(self, parent_page_id: str) -> str:
         """Create a database for storing daily briefings"""
