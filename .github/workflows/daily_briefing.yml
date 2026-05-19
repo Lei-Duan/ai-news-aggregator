@@ -89,6 +89,22 @@ jobs:
             -H "Content-Type: application/json" \
             --data "{\"parent\":{\"database_id\":\"$NOTION_DATABASE_ID\"},\"properties\":{\"Name\":{\"title\":[{\"text\":{\"content\":\"debug-probe2-$(date -u +%s)\"}}]}}}"
           cat /tmp/post2.json; echo
+          echo "--- runner filesystem: .env-like files near repo ---"
+          ls -la .env .env.* 2>/dev/null || echo "no dotenv files at repo root"
+          find . -maxdepth 3 -name '.env' -o -name '.env.local' 2>/dev/null | head
+          echo "--- what settings.py actually loads ---"
+          python3 -c "
+          import os
+          env_before = os.environ.get('NOTION_TOKEN','MISSING')
+          print(f'env BEFORE dotenv: len={len(env_before)} prefix={env_before[:4]} suffix={env_before[-3:] if env_before!=\"MISSING\" else \"\"}')
+          from config.settings import Settings, load_dotenv  # triggers load_dotenv(override=True)
+          env_after = os.environ.get('NOTION_TOKEN','MISSING')
+          print(f'env AFTER  dotenv: len={len(env_after)} prefix={env_after[:4]} suffix={env_after[-3:] if env_after!=\"MISSING\" else \"\"}')
+          s = Settings()
+          t = s.notion_token
+          print(f'Settings().notion_token: len={len(t)} prefix={t[:4]} suffix={t[-3:] if t else \"\"}')
+          print(f'matches workflow secret? {t == env_before}')
+          "
 
       - name: Run daily briefing
         env:
