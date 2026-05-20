@@ -11,7 +11,9 @@ class NotionClient:
     def __init__(self, token: str, database_id: str):
         # 90s timeout (default is 60s). The blocks.children.append endpoint can be
         # slow when a chunk has 100 blocks with rich content.
-        self.client = AsyncClient(auth=token, options={"timeout_ms": 90_000})
+        # NOTE: auth must go *inside* the options dict — notion-client 3.x silently
+        # drops the auth kwarg when an options dict is also passed, producing 401s.
+        self.client = AsyncClient(options={"auth": token, "timeout_ms": 90_000})
         self.database_id = database_id
 
     async def _retry_timeout(self, coro_factory, *, attempts: int = 4, op: str = "request"):
