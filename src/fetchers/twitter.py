@@ -42,6 +42,13 @@ BATCH_SIZE = 100                    # max usernames per /users/by request
 # User-ID cache (avoids the daily /users/by lookup)
 USER_ID_CACHE_PATH = Path("state/twitter_user_ids.json")
 USER_ID_CACHE_TTL_DAYS = 7
+# Bump to invalidate every on-disk user-ID entry at once. Used here to discard
+# the bad tombstones written when /users/by had a transient outage. v1 → v2.
+USER_ID_CACHE_VERSION = 2
+# /users/by transient-failure retry (5xx/429) so a one-off blip doesn't zero
+# out Twitter for the day.
+USERS_BY_MAX_RETRIES = 2
+USERS_BY_RETRY_DELAY = 1.5          # seconds, linear backoff
 
 # Search query construction
 SEARCH_SUFFIX = " -is:retweet -is:reply lang:en"
@@ -223,13 +230,22 @@ class TwitterFetcher:
 
     @staticmethod
     def _load_user_id_cache() -> dict:
+        fresh = {"version": USER_ID_CACHE_VERSION, "users": {}}
         try:
             if USER_ID_CACHE_PATH.exists():
                 with open(USER_ID_CACHE_PATH, "r") as f:
-                    return json.load(f)
+                    cache = json.load(f)
+                if cache.get("version") != USER_ID_CACHE_VERSION:
+                    logger.info(
+                        "Twitter: user-ID cache version %s != %s, discarding "
+                        "(forces a clean re-resolve)",
+                        cache.get("version"), USER_ID_CACHE_VERSION,
+                    )
+                    return fresh
+                return cache
         except Exception as e:
             logger.warning(f"Twitter: cache load failed ({e}), starting fresh")
-        return {"version": 1, "users": {}}
+        return fresh
 
     @staticmethod
     def _save_user_id_cache(cache: dict) -> None:
@@ -289,29 +305,42 @@ class TwitterFetcher:
                 f"resolving {len(stale_or_missing)} via /users/by"
             )
             resolved = await self._batch_resolve_usernames(session, stale_or_missing)
-            for username_lower, ud in resolved.items():
-                fresh[username_lower] = ud
-                users_block[username_lower] = {
-                    **ud,
-                    "cached_at": now.isoformat(),
-                }
-            # Negative cache: handles that /users/by failed to resolve get a
-            # tombstone so we don't retry every day. Same TTL as live entries.
-            unresolved = [h for h in stale_or_missing if h.lower() not in resolved]
-            for h in unresolved:
-                users_block[h.lower()] = {
-                    "id": None,
-                    "username": h,
-                    "tombstone": True,
-                    "cached_at": now.isoformat(),
-                }
-            if unresolved:
-                logger.info(
-                    f"Twitter: {len(unresolved)} handles unresolvable, "
-                    f"tombstoned for {USER_ID_CACHE_TTL_DAYS}d: {unresolved}"
+            if resolved is None:
+                # The /users/by CALL failed (5xx/429/auth/network) — this is NOT
+                # evidence the handles are bad. Do not tombstone; leave them
+                # unresolved so the next run retries. (A transient 500 here once
+                # poisoned all 24 accounts for 7 days.)
+                logger.warning(
+                    "Twitter: /users/by unavailable, leaving %d handle(s) "
+                    "unresolved for next run (no tombstones written)",
+                    len(stale_or_missing),
                 )
-            cache["users"] = users_block
-            self._save_user_id_cache(cache)
+            else:
+                for username_lower, ud in resolved.items():
+                    fresh[username_lower] = ud
+                    users_block[username_lower] = {
+                        **ud,
+                        "cached_at": now.isoformat(),
+                    }
+                # Negative cache: only handles genuinely ABSENT from a successful
+                # 200 response (deleted/renamed/suspended) get a tombstone, so we
+                # skip known-dead handles without retrying every day.
+                unresolved = [h for h in stale_or_missing if h.lower() not in resolved]
+                for h in unresolved:
+                    users_block[h.lower()] = {
+                        "id": None,
+                        "username": h,
+                        "tombstone": True,
+                        "cached_at": now.isoformat(),
+                    }
+                if unresolved:
+                    logger.info(
+                        f"Twitter: {len(unresolved)} handles unresolvable, "
+                        f"tombstoned for {USER_ID_CACHE_TTL_DAYS}d: {unresolved}"
+                    )
+                cache["version"] = USER_ID_CACHE_VERSION
+                cache["users"] = users_block
+                self._save_user_id_cache(cache)
         else:
             logger.info(
                 f"Twitter: all {len(handles)} user IDs from cache "
@@ -358,10 +387,15 @@ class TwitterFetcher:
 
     async def _batch_resolve_usernames(
         self, session: aiohttp.ClientSession, usernames: List[str]
-    ) -> Dict[str, dict]:
+    ) -> Optional[Dict[str, dict]]:
         """
         GET /2/users/by?usernames=u1,u2,...
-        Returns dict: {username_lower: {id, name, username, description}}
+
+        Returns {username_lower: {id, name, username, description}} when every
+        batch got a 200 — absence of a handle then means it genuinely doesn't
+        resolve (safe to tombstone). Returns None if the CALL failed (5xx/429
+        after retries, 401/403, or a network exception); the caller must not
+        tombstone in that case.
         """
         result: Dict[str, dict] = {}
         for i in range(0, len(usernames), BATCH_SIZE):
@@ -370,37 +404,53 @@ class TwitterFetcher:
                 "usernames": ",".join(chunk),
                 "user.fields": "id,name,username,description",
             }
-            try:
-                async with session.get(
-                    f"{self.base_url}/users/by",
-                    headers=self._headers,
-                    params=params,
-                ) as resp:
-                    body = await resp.text()
-                    if resp.status == 401:
+            for attempt in range(USERS_BY_MAX_RETRIES + 1):
+                try:
+                    async with session.get(
+                        f"{self.base_url}/users/by",
+                        headers=self._headers,
+                        params=params,
+                    ) as resp:
+                        body = await resp.text()
+                        if resp.status == 200:
+                            data = json.loads(body)
+                            for user in data.get("data", []):
+                                result[user["username"].lower()] = user
+                            break
+                        if resp.status in (401, 403):
+                            logger.error(
+                                "Twitter: /users/by %s — token/tier problem; "
+                                "not tombstoning. Response: %s",
+                                resp.status, body[:200],
+                            )
+                            return None
+                        transient = resp.status == 429 or resp.status >= 500
+                        if transient and attempt < USERS_BY_MAX_RETRIES:
+                            logger.warning(
+                                "Twitter: /users/by %s (transient), retry %d/%d",
+                                resp.status, attempt + 1, USERS_BY_MAX_RETRIES,
+                            )
+                            await asyncio.sleep(USERS_BY_RETRY_DELAY * (attempt + 1))
+                            continue
                         logger.error(
-                            "Twitter: 401 Unauthorized — check Bearer Token. "
-                            "Response: %s", body[:300]
+                            "Twitter: /users/by returned %s, giving up "
+                            "(not tombstoning). Response: %s",
+                            resp.status, body[:200],
                         )
-                        return {}
-                    if resp.status == 403:
-                        logger.error(
-                            "Twitter: 403 Forbidden — Bearer Token likely free-tier "
-                            "(Basic $100/mo required). Response: %s", body[:300]
+                        return None
+                except Exception as e:
+                    if attempt < USERS_BY_MAX_RETRIES:
+                        logger.warning(
+                            "Twitter: /users/by exception (%s), retry %d/%d",
+                            e, attempt + 1, USERS_BY_MAX_RETRIES,
                         )
-                        return {}
-                    if resp.status != 200:
-                        logger.error(
-                            "Twitter: /users/by returned %s. Response: %s",
-                            resp.status, body[:300]
-                        )
-                        return {}
-                    data = json.loads(body)
-                    for user in data.get("data", []):
-                        result[user["username"].lower()] = user
-            except Exception as e:
-                logger.error("Twitter: exception in _batch_resolve_usernames: %s", e)
-                return {}
+                        await asyncio.sleep(USERS_BY_RETRY_DELAY * (attempt + 1))
+                        continue
+                    logger.error(
+                        "Twitter: /users/by exception, giving up "
+                        "(not tombstoning): %s", e
+                    )
+                    return None
         return result
 
     async def _run_search(
