@@ -8,10 +8,6 @@ load_dotenv(override=True)
 class Settings:
     # API Keys
     twitter_bearer_token: str = os.getenv("TWITTER_BEARER_TOKEN", "")
-    twitter_api_key: str = os.getenv("TWITTER_API_KEY", "")
-    twitter_api_secret: str = os.getenv("TWITTER_API_SECRET", "")
-    twitter_access_token: str = os.getenv("TWITTER_ACCESS_TOKEN", "")
-    twitter_access_token_secret: str = os.getenv("TWITTER_ACCESS_TOKEN_SECRET", "")
 
     github_token: str = os.getenv("GITHUB_TOKEN", "")
 

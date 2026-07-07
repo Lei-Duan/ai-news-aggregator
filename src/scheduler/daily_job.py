@@ -13,7 +13,6 @@ from src.fetchers.podcast import PodcastFetcher
 from src.fetchers.blog import BlogFetcher
 
 from src.processors.summarizer import ContentSummarizer
-from src.processors.classifier import ContentClassifier
 from src.processors.filter import ContentFilter
 from src.processors.state import SeenItemsState
 
@@ -56,7 +55,6 @@ class DailyBriefingJob:
         self.blog_fetcher = BlogFetcher(max_age_hours=72)
 
         self.summarizer = ContentSummarizer(anthropic_api_key=settings.anthropic_api_key)
-        self.classifier = ContentClassifier()
         self.filter = ContentFilter()
 
         self.notion_client = NotionClient(
