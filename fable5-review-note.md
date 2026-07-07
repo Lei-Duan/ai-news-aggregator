@@ -33,10 +33,10 @@
 ## 4. 一次性代码 / 清理建议
 
 - **`src/processors/classifier.py`（175 行，死代码）**：`ContentClassifier` 只在 `daily_job.py:59` 被实例化，从未被调用——分类实际来自 summarizer 的输出。→ **本 PR 已删除**（文件 + daily_job.py 两行引用）。
-- **`AGENTS.md`（untracked，6 月 23 日生成）**：是 CLAUDE.md 的 sed 复制品，把 "Claude" 全局替换成了 "Codex"，产生了 `Codex Haiku`、`Codex-haiku-4-5-20251001` 这种错误模型名，会误导任何读它的 agent。要么删掉，要么正确重生成（AGENTS.md 应与 CLAUDE.md 内容一致，模型名不该被替换）。（未跟踪文件，无法进本 PR，需你本地处理。）
+- **`AGENTS.md`（untracked，6 月 23 日生成）**：是 CLAUDE.md 的 sed 复制品，把 "Claude" 全局替换成了 "Codex"，产生了 `Codex Haiku`、`Codex-haiku-4-5-20251001` 这种错误模型名，会误导任何读它的 agent。→ **已处理：AGENTS.md 现在是指向 CLAUDE.md 的 symlink**，内容永不漂移。
 - **`config/settings.py` 的 `twitter_api_key/api_secret/access_token/access_token_secret`**：四个配置项全项目无人使用，workflow 里对应的 4 行 secrets 注入也可一并删。→ **本 PR 已删除（含 workflow 4 行，dry-run 实例化验证通过）**
-- **`main.py` 的 `--config` 参数**：解析后从未读取；`--mode schedule`（APScheduler 常驻模式）自从上了 Actions cron 后也没有存在必要，删掉可顺带去掉 `apscheduler` 依赖——需要你决定是否保留本地常驻的可能性。
-- **`state/twitter_user_ids.json` 被 track 进 git**：它是运行时缓存，条目带 7 天 TTL（`cached_at` 停在 5 月 7 日），任何人拿到时都已过期，且 CI 里会被 Actions Cache 覆盖——作为 fork 种子毫无作用。建议 `git rm --cached` 并像 `seen_items.json` 一样进 .gitignore。
+- **`main.py` 的 `--config` 参数**：解析后从未读取；`--mode schedule`（APScheduler 常驻模式）自从上了 Actions cron 后也没有存在必要，→ **已删除**：schedule 模式、--config 参数、run_daily_job、apscheduler 依赖、workflow 里的 SCHEDULE_TIME/TIMEZONE 一并移除（定时完全由 Actions cron 负责）。
+- **`state/twitter_user_ids.json` 被 track 进 git**：它是运行时缓存，条目带 7 天 TTL（`cached_at` 停在 5 月 7 日），任何人拿到时都已过期，且 CI 里会被 Actions Cache 覆盖——作为 fork 种子毫无作用。→ **已 untrack 并加入 .gitignore**（twitter.py 是 exists() 懒加载 + 缓存缺失自动重建，CI 由 Actions Cache 兜底）。
 - **`src/notion/client.py` 尾部 4 个方法**（`update_page_properties`/`get_existing_pages`/`append_to_page`/`create_database_if_not_exists`，约 100 行）：全项目无调用，属初版遗留。→ **本 PR 已删除**
 - **小问题**：`.gitignore` 里 `.DS_Store` 重复两次，且有一行 `.idea/.env.api` 疑似两行粘连（导致 `.idea/` 实际没被忽略）→ **本 PR 已修复**；`CHANGELOG.md` 停更在 0.3.1（4 月 7 日），之后的邮件推送、Actions Cache 去重、AI 基建分类、Twitter 成本优化都没记录。
 - **保留勿删**：`twitter.py` 的 `search_trending()` 是有意保留的（CLAUDE.md 明确写了升级 Pro tier 后重新启用）。
