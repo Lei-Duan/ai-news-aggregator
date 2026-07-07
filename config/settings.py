@@ -16,10 +16,6 @@ class Settings:
 
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
 
-    # Scheduler
-    schedule_time: str = os.getenv("SCHEDULE_TIME", "09:00")
-    timezone: str = os.getenv("TIMEZONE", "US/Pacific")
-
     # Content filtering
     min_quality_score: float = float(os.getenv("MIN_QUALITY_SCORE", "0.7"))
     max_articles_per_source: int = int(os.getenv("MAX_ARTICLES_PER_SOURCE", "10"))

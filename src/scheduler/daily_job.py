@@ -562,10 +562,5 @@ class DailyBriefingJob:
             self.sources = original
 
 
-async def run_daily_job():
-    job = DailyBriefingJob()
-    await job.run_daily_briefing()
-
-
 if __name__ == "__main__":
     asyncio.run(DailyBriefingJob().test_run())

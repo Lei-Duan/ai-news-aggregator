@@ -7,7 +7,7 @@
 ```bash
 python3 main.py --mode once      # 单次运行
 python3 main.py --mode test      # 测试模式（部分数据源）
-python3 main.py --mode schedule  # 启动定时任务
+# 定时调度由 GitHub Actions cron 负责（.github/workflows/daily_briefing.yml），无本地常驻模式
 ```
 
 ## 架构
@@ -65,13 +65,14 @@ src/scheduler/daily_job.py  # 主流程编排
 ## 去重机制说明
 - 跨日去重：已处理的 item ID 记录在 `state/seen_items.json`，7 天过期
 - **同日重跑不去重**：当天 seen 的条目视为 unseen，允许同一天多次运行（如 GitHub Actions 跑完后本地再测试）
-- GitHub Actions 每次运行后自动 commit state 文件回 repo
+- CI 中 `state/` 由 Actions Cache 保存/恢复（workflow 只有读权限，**不** commit state 回 repo）；`twitter_user_ids.json` 同理，是 7 天 TTL 的运行时缓存，不进 git
 
 ## 依赖
 ```
 aiohttp, httpx, anthropic, notion-client, python-dotenv,
-pyyaml, feedparser, apscheduler, beautifulsoup4
+pyyaml, feedparser, beautifulsoup4
 ```
+（`AGENTS.md` 是指向本文件的 symlink，供其它 agent 工具读取，别单独编辑它）
 
 ## 修复原则 & 工作约定
 - 所有 fix 区分**瞬时故障**（重试/降级，别把偶发当永久）与**永久失效**（换方案），按"长久能 run"的标准修

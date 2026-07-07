@@ -140,3 +140,4 @@ config/local_config.py
 .env.api
 .env.simple
 state/seen_items.json
+state/twitter_user_ids.json
