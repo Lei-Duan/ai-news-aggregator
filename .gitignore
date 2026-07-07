@@ -136,7 +136,7 @@ config/local_config.py
 .env.production
 .DS_Store
 .vscode/
-.idea/.env.api
+.idea/
+.env.api
 .env.simple
-.DS_Store
 state/seen_items.json

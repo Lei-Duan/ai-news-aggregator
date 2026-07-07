@@ -72,3 +72,11 @@ src/scheduler/daily_job.py  # 主流程编排
 aiohttp, httpx, anthropic, notion-client, python-dotenv,
 pyyaml, feedparser, apscheduler, beautifulsoup4
 ```
+
+## 修复原则 & 工作约定
+- 所有 fix 区分**瞬时故障**（重试/降级，别把偶发当永久）与**永久失效**（换方案），按"长久能 run"的标准修
+- 任何新增 API 调用先估算日成本（本项目曾砍掉 96% 的 Twitter 费用、摘要切 Haiku 批量化）——省 token 是常驻约束
+- **"job success ≠ 系统健康"**：改抓取逻辑后确认日志里 `Raw [source]: N items` / fetch_stats，平常非零的 source 归零要当事故处理（Twitter 曾静默断供多天）
+- CI 里出的问题先在本地复现再修，别用每日 cron 当调试循环（Notion 401 那次拖了 6 天）
+- 行为变更必须同步更新本文件的渠道表/已知问题 + README 中英两份
+- 验证通过后直接 merge PR 到 main，不需再次确认；但绝不直接 push main
