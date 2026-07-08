@@ -439,3 +439,33 @@ class NotionClient:
         blocks.append(self._blank())
         return blocks
 
+    async def append_to_page(self, page_id: str, content_blocks: List[Dict]) -> bool:
+        """Append content blocks to an existing page.
+
+        KEEP — NOT dead code. create_daily_briefing() calls self.append_to_page()
+        3x (pre-table overflow, the summary table, post-table content). A cleanup
+        pass removed this as "unused" and broke the 2026-07-08 run with
+        AttributeError: a naive dead-code scan misses the self.append_to_page(...)
+        call sites above. Notion's pages.create can't take table blocks inline,
+        so the table MUST be appended separately — this method is load-bearing.
+        """
+        try:
+            await self._retry_timeout(
+                lambda: self.client.blocks.children.append(
+                    block_id=page_id,
+                    children=content_blocks,
+                ),
+                op="blocks.children.append",
+            )
+            logger.info(f"Appended content to page: {page_id}")
+            return True
+
+        except APIResponseError as e:
+            logger.error(f"Error appending to page: {e}")
+            return False
+        except RequestTimeoutError as e:
+            # Re-raise: daily_job needs to know the page is incomplete rather
+            # than silently returning False and writing a half-built briefing.
+            logger.error(f"Timeout appending to page after retries: {e}")
+            raise
+
