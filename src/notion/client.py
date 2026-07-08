@@ -439,3 +439,28 @@ class NotionClient:
         blocks.append(self._blank())
         return blocks
 
+    # NOT dead code: self-called 3x by create_daily_briefing above (100-block
+    # batched appends). Was wrongly removed as unused on 2026-07-07 — the
+    # dead-code grep excluded this file to skip the definitions and filtered
+    # out these internal call sites with it. Broke the 2026-07-08 run.
+    async def append_to_page(self, page_id: str, content_blocks: List[Dict]) -> bool:
+        """Append content blocks to an existing page"""
+        try:
+            await self._retry_timeout(
+                lambda: self.client.blocks.children.append(
+                    block_id=page_id,
+                    children=content_blocks,
+                ),
+                op="blocks.children.append",
+            )
+            logger.info(f"Appended content to page: {page_id}")
+            return True
+
+        except APIResponseError as e:
+            logger.error(f"Error appending to page: {e}")
+            return False
+        except RequestTimeoutError as e:
+            # Re-raise: daily_job needs to know the page is incomplete rather
+            # than silently returning False and writing a half-built briefing.
+            logger.error(f"Timeout appending to page after retries: {e}")
+            raise
